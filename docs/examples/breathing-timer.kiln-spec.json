@@ -1,0 +1,124 @@
+{
+  "appClass": "menu-bar breathing timer (focus/wellness utility)",
+  "analogClaims": [
+    {
+      "claim": "lives in the menu bar, unobtrusive during work and calls",
+      "source": "https://macmenubar.com/breathepulse/ ; Mindfulness Bell Menu Bar (App Store)",
+      "classification": "baseline",
+      "confidence": "high",
+      "criticality": "low",
+      "affectsPermissionsOrData": false
+    },
+    {
+      "claim": "guides breathing with visual + audio + haptic cues (trackpad haptics on Mac)",
+      "source": "BreathePulse (macmenubar.com); devproblems.com/best-breathing-apps",
+      "classification": "baseline",
+      "confidence": "high",
+      "criticality": "low",
+      "affectsPermissionsOrData": false
+    },
+    {
+      "claim": "offers box breathing 4-4-4-4 plus customizable inhale/exhale/pause durations",
+      "source": "Awesome Breathing: Pacer Timer (App Store); BreathePulse",
+      "classification": "baseline",
+      "confidence": "high",
+      "criticality": "low",
+      "affectsPermissionsOrData": false
+    },
+    {
+      "claim": "remembers last settings and starts immediately with a big control",
+      "source": "breethe.com free breathing app comparison",
+      "classification": "baseline",
+      "confidence": "medium",
+      "criticality": "low",
+      "affectsPermissionsOrData": false
+    },
+    {
+      "claim": "daily reminders and habit support (streaks/stats)",
+      "source": "othership.us/resources/breathwork-apps",
+      "classification": "common_pattern",
+      "confidence": "medium",
+      "criticality": "medium",
+      "affectsPermissionsOrData": true
+    },
+    {
+      "claim": "Apple Health integration for mindful minutes",
+      "source": "Pine (macOS breathing app)",
+      "classification": "opinionated_choice",
+      "confidence": "medium",
+      "criticality": "high",
+      "affectsPermissionsOrData": true
+    }
+  ],
+  "baselineRequirements": [
+    "menu-bar presence, unobtrusive — never steals focus",
+    "box breathing 4-4-4-4 as default, with customizable durations",
+    "minimalist visual guide synced to the breath phases",
+    "audio cue (toggleable) and trackpad haptic cue",
+    "remembers last pattern and preferences",
+    "one-click start from the menu bar"
+  ],
+  "customDelta": [
+    "optimized for focus during work: short sessions that run during calls without disruption"
+  ],
+  "successCriteria": [
+    "user starts a session in one click from the menu bar",
+    "session runs without stealing focus from the active app",
+    "visual/audio/haptic cues stay in sync with the chosen pattern"
+  ],
+  "acceptanceTests": [
+    "clicking the menu-bar icon then Start shows a guide animating on a 4-4-4-4 cadence",
+    "toggling sound off removes audio while visual and haptic cues continue",
+    "quitting and relaunching restores the last pattern and preferences"
+  ],
+  "dataFlows": [
+    "user preferences read/written locally; no data leaves the machine by default"
+  ],
+  "permissions": [
+    "notifications (only if reminders enabled — needs confirmation)",
+    "Apple Health write (only if mindful-minutes sync enabled — needs confirmation)"
+  ],
+  "externalServices": [],
+  "localStorage": [
+    "selected pattern, custom durations, sound/haptic preferences"
+  ],
+  "unknowns": [
+    "does the user want daily reminders?",
+    "does the user want Apple Health sync for mindful minutes?"
+  ],
+  "mustAskIfDiscovered": [
+    "any network call",
+    "any account or sign-in requirement"
+  ],
+  "decisionLog": [
+    {
+      "decision": "minimalist visual guide with a dark, quiet menu-bar UI",
+      "rationale": "UI/UX detail — best-in-class for an unobtrusive focus tool; decided for the user",
+      "tier": "auto"
+    },
+    {
+      "decision": "default pattern is box breathing 4-4-4-4",
+      "rationale": "market standard for focus sessions",
+      "tier": "auto"
+    },
+    {
+      "decision": "audio off by default, haptics on",
+      "rationale": "unobtrusive during work and calls",
+      "tier": "auto"
+    },
+    {
+      "decision": "daily reminders via notifications",
+      "rationale": "common pattern but touches the notifications permission",
+      "tier": "confirmed"
+    },
+    {
+      "decision": "Apple Health sync for mindful minutes",
+      "rationale": "touches health data — high risk; only with explicit consent",
+      "tier": "confirmed"
+    }
+  ],
+  "unresolvedRisks": [
+    "Apple Health is health data — include only with explicit user consent",
+    "notifications permission required for reminders"
+  ]
+}

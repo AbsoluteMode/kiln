@@ -1,0 +1,112 @@
+{
+  "appClass": "batch file renamer (file/data utility)",
+  "analogClaims": [
+    {
+      "claim": "real-time live preview of new names before applying, with changed parts highlighted",
+      "source": "https://batchio.dev/guides/best-file-renamer-mac ; https://renamer.io/",
+      "classification": "baseline",
+      "confidence": "high",
+      "criticality": "medium",
+      "affectsPermissionsOrData": false
+    },
+    {
+      "claim": "full undo / operation history reverts the whole batch (e.g. 100-operation undo, Cmd-Z)",
+      "source": "https://batchio.dev/guides/bulk-rename-utility-alternative-mac",
+      "classification": "baseline",
+      "confidence": "high",
+      "criticality": "high",
+      "affectsPermissionsOrData": true
+    },
+    {
+      "claim": "conflict detection when two files would map to the same name",
+      "source": "https://batchio.dev/guides/bulk-rename-utility-mac",
+      "classification": "baseline",
+      "confidence": "high",
+      "criticality": "high",
+      "affectsPermissionsOrData": true
+    },
+    {
+      "claim": "regex find & replace with capture groups plus multiple rule types",
+      "source": "https://batchio.dev/features/find-and-replace ; https://www.transnomino.com/",
+      "classification": "baseline",
+      "confidence": "high",
+      "criticality": "low",
+      "affectsPermissionsOrData": false
+    },
+    {
+      "claim": "drag-and-drop files and folders to load them",
+      "source": "https://www.namequick.app/blog/batch-rename-files-mac",
+      "classification": "common_pattern",
+      "confidence": "medium",
+      "criticality": "low",
+      "affectsPermissionsOrData": false
+    },
+    {
+      "claim": "EXIF/audio metadata-based renaming for power users",
+      "source": "https://batchio.dev/guides/best-file-renamer-mac (Better Rename, Batchio)",
+      "classification": "opinionated_choice",
+      "confidence": "medium",
+      "criticality": "low",
+      "affectsPermissionsOrData": false
+    }
+  ],
+  "baselineRequirements": [
+    "load files via drag-and-drop or a folder picker",
+    "live preview with highlighted changes before anything is applied",
+    "regex find & replace with capture groups, plus common rules (numbering, case, replace)",
+    "conflict detection before apply",
+    "full undo of an applied batch"
+  ],
+  "customDelta": [
+    "emphasis on speed and simplicity over power-user feature sprawl"
+  ],
+  "successCriteria": [
+    "user previews every new name before any file is touched",
+    "user can fully undo an applied batch",
+    "no file is overwritten because of a name conflict"
+  ],
+  "acceptanceTests": [
+    "loading 10 files and typing a find/replace shows live-updated names with changes highlighted, and no file is modified yet",
+    "applying a batch then choosing undo restores every original name",
+    "a rule mapping two files to the same name is flagged and blocked before apply"
+  ],
+  "dataFlows": [
+    "reads file names and metadata from user-selected folders; writes (renames) only on explicit apply; nothing leaves the machine"
+  ],
+  "permissions": [
+    "file-system access to user-selected folders (core function — confirm scope)"
+  ],
+  "externalServices": [],
+  "localStorage": [
+    "recent rules / presets (optional)"
+  ],
+  "unknowns": [
+    "the user did not specify a unique twist — scope defaults to a market-standard renamer",
+    "should it support metadata (EXIF) renaming, or stay simple?"
+  ],
+  "mustAskIfDiscovered": [
+    "any network call or cloud upload",
+    "deleting files rather than renaming them"
+  ],
+  "decisionLog": [
+    {
+      "decision": "default to a simple rule set (replace, numbering, case) over a power-user sprawl",
+      "rationale": "UI/UX detail aligned with the request for simplicity; decided for the user",
+      "tier": "auto"
+    },
+    {
+      "decision": "require an explicit Apply; never rename on keystroke",
+      "rationale": "safety — a destructive file operation must be gated behind preview + confirm",
+      "tier": "auto"
+    },
+    {
+      "decision": "file-system access scoped to user-selected folders",
+      "rationale": "core function but touches the user's files — confirm the scope, least privilege",
+      "tier": "confirmed"
+    }
+  ],
+  "unresolvedRisks": [
+    "renaming is a destructive file operation — undo and conflict detection are mandatory, not optional",
+    "file-system access must be limited to user-selected folders only (least privilege)"
+  ]
+}
