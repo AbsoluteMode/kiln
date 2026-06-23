@@ -87,7 +87,9 @@ Chosen for: ability to spawn/launch native `.app`, fast prototype iteration, aut
 
 - **Understanding surface:** **Tauri** (Rust shell) + **React / TypeScript** webview. React/TS matches the Raycast extension developer surface; Rust gives an explicit native capability boundary that is itself part of the trust narrative.
 - **Launch / Trust broker (deferred):** a *separate* native Rust module for `.app` inspection, launch, process tracking, code-signature checks, and permission gating. **Do not build one monolith** — Tauri's Rust command boundary supports this split cleanly.
-- **LLM:** Claude API (Anthropic) for understanding + research. Model selection deferred.
+- **UI styling:** Tailwind CSS — fast, premium webview UI.
+- **LLM:** Claude API (Anthropic) for the understanding agent + tool use; web search via **Exa**. The **agent loop runs in the Rust core**, keeping the API key in the native shell (part of the trust posture). Model selection deferred.
+- **Quality bar (user-set):** the app must work well, look good, and stay lightweight (Tauri over Electron).
 
 ## 5. First Layer — User Understanding Layer (Front, phases 0–1)
 
@@ -172,6 +174,28 @@ Not a single button — a policy engine with risk tiers (Codex hardening):
 ### 5.6 Boundary Hardening (Codex)
 
 The phase 1→2 handoff is: **intent contract → generated acceptance tests → generation spec.** If a later phase finds a contradiction, it **halts**, emits a decision record, and routes to policy — it does not silently guess.
+
+### 5.7 Agent & Tool Architecture
+
+The understanding layer is an **LLM agent** (`user_understanding`), not a function. It is **reusable** — invoked both at app **creation** and at later **iteration/rework**.
+
+- **Input:** the user's request (plus, on rework, the current spec).
+- **Tools:**
+  - `market_research(query)` — researches solutions via **search + memory** to learn how users typically interact with this class of app (= market standards). Returns patterns + sources (citations for provenance).
+  - `ask_user(question, choices?)` — asks **unobtrusively**: minimum questions, maximum understanding (gated by §5.1 — only when uncertainty is real AND critical).
+- **Loop:** classify the service → `market_research` → hypothesis (baseline from research + custom from request) → resolve contested points → assemble spec.
+- **Output:** the **full app spec** = how the app should behave + success criteria. This *is* the Intent Contract (§5.4).
+
+**Contested-point resolution — two rules:**
+1. **UI/UX ambiguities → decided for the user in favor of usability** (auto, Tier 1).
+2. **High-risk surfaced by research** (e.g. analogs "usually sync to cloud / send telemetry") → **not** auto; `ask_user`. UI/UX is decided for the user; data / permissions / network are asked. (Codex hardening; consistent with §5.3 and §5.5.)
+
+**Tool implementation categories:**
+- **External:** `market_research` → web search (Exa) + model memory.
+- **UI-bridge:** `ask_user` → emits a tool call; the React UI renders it; the agent loop pauses until the human answers (tool_result resumes it).
+- **Internal (core-backed, deterministic):** risk tiering, provenance gate, contract validation — the decision core (foundation plan). The LLM reasons; the core decides. This is where "surgical precision" lives — tiers and validation are never vibed.
+
+**The agent loop lives in the Rust core** (Tauri backend), not the webview.
 
 ## 6. Error Handling & Edge Cases (Front)
 
