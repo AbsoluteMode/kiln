@@ -3,13 +3,8 @@ node_modules/
 
 # Build output
 dist/
-dist-ssr/
 build/
 *.local
-
-# Rust / Tauri
-target/
-src-tauri/target/
 
 # Env / secrets
 .env

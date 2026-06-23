@@ -1,22 +1,36 @@
 # Kiln
 
-> Trust Runtime for vibe-coded apps. Glaze lays on the glaze — Kiln fires it into something you can trust.
+> A Claude Code plugin that writes high-quality macOS services under the hood. Glaze lays on the glaze — Kiln fires it into something you can trust.
 
-Vibe-coding studios (Glaze by Raycast, and peers) solved **generation**: describe an app, get a working native macOS app. Generation is now a commodity.
+Vibe-coding studios solved **generation**. Kiln closes the gap they left open: **trust**. It understands what you want, fires it into a verifiable build spec, then builds it by orchestrating the CLIs you already have — **Claude Code**, and **Codex** when it's installed — proving the result does what you meant and is safe, for people who can't read code.
 
-Kiln closes the gap they left open: **trust**. It sits between *intent* and *finished app* and turns unverified output into verified output — proving an app **does what the user meant** (correctness) and **won't harm them** (safety), for people who can't read code.
+It does **not** write its own generation engine. It orchestrates the harnesses you already have; the value is the **contracts** and the **workflow**.
 
-It is not a generator. Generation is orchestrated (Claude/Codex); Kiln is the assurance layer around it.
+## Pipeline
 
-## Status
+1. **`kiln:start`** — *understanding*. Turns a vague request into a verifiable build spec (intent contract) via analog-driven market research, minimum questions, decide-for-me, and provenance gating. ✅ implemented
+2. **build** — generation by orchestrating the user's own `claude` / `codex` CLI against the contract. *(next)*
+3. **validate** — trust gates proving the build matches the contract. *(next)*
 
-Early build. First layer in progress: **User Understanding Layer** (phases 0–1 — the only place the human participates; everything below is delegated to an autonomous expert core).
+## Try it
 
-## Docs
+```
+/kiln:start a menu-bar breathing timer for focus
+```
 
-- [Design spec](docs/superpowers/specs/2026-06-23-trust-runtime-design.md)
-- [Glaze blockers research](docs/research/2026-06-23-glaze-blockers.md)
+Worked examples of the output spec live in [docs/examples](docs/examples).
 
-## Stack
+## Repo layout
 
-Tauri (Rust shell) + React/TypeScript webview. A separate native launch/trust broker is deferred.
+- `commands/` — plugin commands (`kiln:start`)
+- `.claude-plugin/` — plugin manifest
+- `src/core/` — the decision core: intent-contract schema + trust gates (risk tiering, governing principle, provenance), fully unit-tested
+- `docs/` — design spec, research, example specs
+
+## Develop
+
+```
+npm install
+npm test
+npm run typecheck
+```
