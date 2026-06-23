@@ -1,121 +1,167 @@
 {
-  "appClass": "menu-bar breathing timer (focus/wellness utility)",
+  "schemaVersion": "1.0",
+  "specRevision": 1,
+  "status": "ready",
+  "intent": {
+    "oneSentenceIntent": "A menu-bar breathing timer that runs unobtrusively during focused work.",
+    "targetUsers": ["a Mac user who wants quick guided breathing breaks during work"],
+    "problem": "taking a paced breathing break shouldn't pull you out of your workflow",
+    "desiredOutcome": "start a paced breathing session in one click and breathe along without losing focus",
+    "usageContexts": ["during work", "during calls", "on a single Mac"],
+    "explicitConstraints": ["never steals focus from the active app"],
+    "nonGoals": ["not a full meditation course", "no social or sharing features"]
+  },
+  "classification": {
+    "jobClass": "wellness_timer",
+    "interactionSurfaces": ["menu_bar"],
+    "lifecycle": "on_demand",
+    "interactionModel": "single_shot"
+  },
+  "coreJourneys": [
+    {
+      "id": "JRN-001",
+      "actor": "single Mac owner at work",
+      "trigger": "user clicks the menu-bar icon and presses Start",
+      "preconditions": [],
+      "steps": [
+        "open the menu-bar popover",
+        "keep or pick the Box 4-4-4-4 pattern",
+        "press Start",
+        "breathe along with the visual + haptic guide"
+      ],
+      "expectedOutcome": "a paced session runs to completion without stealing focus",
+      "failureRecovery": "if haptics are unavailable the visual (and optional audio) guide continues; the user can stop at any time"
+    }
+  ],
+  "scope": {
+    "must": ["REQ-001", "REQ-002", "REQ-003"],
+    "should": ["REQ-004"],
+    "wont": ["cloud sync", "account/sign-in"]
+  },
+  "sources": [
+    { "id": "S1", "type": "user_statement", "title": "user asked for a breathing timer for focus", "supports": ["REQ-001"] },
+    { "id": "S2", "type": "analog_product_doc", "title": "BreathePulse (macmenubar.com)", "url": "https://macmenubar.com/breathepulse/", "supports": ["REQ-002", "C1"] },
+    { "id": "S3", "type": "analog_product_doc", "title": "Awesome Breathing: Pacer Timer (App Store)", "supports": ["REQ-002", "C1"] },
+    { "id": "S4", "type": "apple_primary_doc", "title": "Human Interface Guidelines — the menu bar", "supports": ["REQ-003"] }
+  ],
   "analogClaims": [
     {
-      "claim": "lives in the menu bar, unobtrusive during work and calls",
-      "source": "https://macmenubar.com/breathepulse/ ; Mindfulness Bell Menu Bar (App Store)",
-      "classification": "baseline",
-      "confidence": "high",
-      "criticality": "low",
-      "affectsPermissionsOrData": false
-    },
-    {
-      "claim": "guides breathing with visual + audio + haptic cues (trackpad haptics on Mac)",
-      "source": "BreathePulse (macmenubar.com); devproblems.com/best-breathing-apps",
-      "classification": "baseline",
-      "confidence": "high",
-      "criticality": "low",
-      "affectsPermissionsOrData": false
-    },
-    {
-      "claim": "offers box breathing 4-4-4-4 plus customizable inhale/exhale/pause durations",
-      "source": "Awesome Breathing: Pacer Timer (App Store); BreathePulse",
-      "classification": "baseline",
-      "confidence": "high",
-      "criticality": "low",
-      "affectsPermissionsOrData": false
-    },
-    {
-      "claim": "remembers last settings and starts immediately with a big control",
-      "source": "breethe.com free breathing app comparison",
-      "classification": "baseline",
-      "confidence": "medium",
-      "criticality": "low",
-      "affectsPermissionsOrData": false
-    },
-    {
-      "claim": "daily reminders and habit support (streaks/stats)",
-      "source": "othership.us/resources/breathwork-apps",
+      "id": "C1",
+      "claim": "menu-bar breathing apps drive visual + trackpad-haptic cues synced to each breath phase",
       "classification": "common_pattern",
-      "confidence": "medium",
-      "criticality": "medium",
-      "affectsPermissionsOrData": true
-    },
-    {
-      "claim": "Apple Health integration for mindful minutes",
-      "source": "Pine (macOS breathing app)",
-      "classification": "opinionated_choice",
-      "confidence": "medium",
-      "criticality": "high",
-      "affectsPermissionsOrData": true
+      "analogFit": "high",
+      "supportCount": 2,
+      "evidenceRefs": ["S2", "S3"],
+      "confidence": "high",
+      "criticality": "low"
     }
   ],
-  "baselineRequirements": [
-    "menu-bar presence, unobtrusive — never steals focus",
-    "box breathing 4-4-4-4 as default, with customizable durations",
-    "minimalist visual guide synced to the breath phases",
-    "audio cue (toggleable) and trackpad haptic cue",
-    "remembers last pattern and preferences",
-    "one-click start from the menu bar"
+  "requirements": {
+    "baseline": [
+      { "id": "REQ-002", "statement": "guide breathing with a visual cue and a trackpad-haptic cue, synced to the pattern", "priority": "must", "evidenceRefs": ["S2", "S3", "C1"] },
+      { "id": "REQ-003", "statement": "live in the menu bar and never steal focus from the active app", "priority": "must", "evidenceRefs": ["S4"] }
+    ],
+    "customDelta": [
+      { "id": "REQ-001", "statement": "default to Box 4-4-4-4 and start a session in one click, optimized for short focus breaks", "priority": "must", "evidenceRefs": ["S1"] },
+      { "id": "REQ-004", "statement": "remember the last pattern and preferences across launches", "priority": "should", "evidenceRefs": ["S2"] }
+    ]
+  },
+  "qualityAttributes": ["unobtrusive", "instant start", "works fully offline"],
+  "dataHandlingIntent": {
+    "dataFlows": [
+      {
+        "dataCategory": "user preferences (pattern, durations, cue toggles)",
+        "source": "the user",
+        "purpose": "remember settings across launches",
+        "sensitivity": "low",
+        "destination": "local device",
+        "locality": "local",
+        "retention": "until the user changes them",
+        "deletion": "reset to defaults in-app",
+        "thirdParties": []
+      }
+    ],
+    "forbiddenPractices": ["no network calls", "no analytics or telemetry", "no account"]
+  },
+  "capabilityNeeds": [
+    {
+      "id": "CAP-001",
+      "capability": "trackpad haptics",
+      "minimalScope": "emit haptic pulses only while a session runs",
+      "purpose": "haptic breathing cue",
+      "userBenefit": "feel the rhythm without looking at the screen",
+      "confirmationStatus": "confirmed_by_request",
+      "evidenceRefs": ["S1", "C1"]
+    }
   ],
-  "customDelta": [
-    "optimized for focus during work: short sessions that run during calls without disruption"
+  "deliveryContext": {
+    "audience": "personal",
+    "distributionConstraint": "build_decides",
+    "compatibilityConstraints": ["macOS 12+"],
+    "offlineExpectation": "required"
+  },
+  "macBaseline": [
+    { "area": "main_menu", "status": "required" },
+    { "area": "keyboard_only", "status": "required" },
+    { "area": "voiceover", "status": "deferred" },
+    { "area": "appearance", "status": "required" },
+    { "area": "empty_state", "status": "required" },
+    { "area": "state_restoration", "status": "required" },
+    { "area": "undo_or_confirm", "status": "not_applicable" },
+    { "area": "window_behavior", "status": "not_applicable" },
+    { "area": "offline_error", "status": "required" }
   ],
   "successCriteria": [
-    "user starts a session in one click from the menu bar",
-    "session runs without stealing focus from the active app",
-    "visual/audio/haptic cues stay in sync with the chosen pattern"
+    "user starts a session in one click",
+    "session runs without stealing focus",
+    "cues stay in sync with the pattern"
   ],
   "acceptanceTests": [
-    "clicking the menu-bar icon then Start shows a guide animating on a 4-4-4-4 cadence",
-    "toggling sound off removes audio while visual and haptic cues continue",
-    "quitting and relaunching restores the last pattern and preferences"
-  ],
-  "dataFlows": [
-    "user preferences read/written locally; no data leaves the machine by default"
-  ],
-  "permissions": [],
-  "externalServices": [],
-  "localStorage": [
-    "selected pattern, custom durations, sound/haptic preferences"
-  ],
-  "unknowns": [
-    "does the user want daily reminders?",
-    "does the user want Apple Health sync for mindful minutes?"
-  ],
-  "mustAskIfDiscovered": [
-    "any network call",
-    "any account or sign-in requirement"
-  ],
-  "decisionLog": [
     {
-      "decision": "minimalist visual guide with a dark, quiet menu-bar UI",
-      "rationale": "UI/UX detail — best-in-class for an unobtrusive focus tool; decided for the user",
-      "tier": "auto"
+      "id": "AT-001",
+      "covers": ["REQ-001"],
+      "given": "the app is in the menu bar",
+      "when": "the user opens the popover and presses Start",
+      "then": ["a Box 4-4-4-4 session begins", "the guide animates on a 4-4-4-4 cadence"],
+      "requiredEvidence": ["screenshot", "automated_assertion"]
     },
     {
-      "decision": "default pattern is box breathing 4-4-4-4",
-      "rationale": "market standard for focus sessions",
-      "tier": "auto"
+      "id": "AT-002",
+      "covers": ["REQ-002"],
+      "given": "a session is running",
+      "when": "the user toggles sound off",
+      "then": ["no audio plays", "visual and haptic cues continue"],
+      "requiredEvidence": ["automated_assertion"]
     },
     {
-      "decision": "audio off by default, haptics on",
-      "rationale": "unobtrusive during work and calls",
-      "tier": "auto"
-    },
-    {
-      "decision": "daily reminders via notifications",
-      "rationale": "common pattern but touches the notifications permission",
-      "tier": "needs_confirmation"
-    },
-    {
-      "decision": "Apple Health sync for mindful minutes",
-      "rationale": "touches health data — high risk; only with explicit consent",
-      "tier": "needs_confirmation"
+      "id": "AT-003",
+      "covers": ["REQ-003"],
+      "given": "a session is running",
+      "when": "the user switches to another app",
+      "then": ["focus stays with the other app", "the session keeps running in the menu bar"],
+      "requiredEvidence": ["screenshot", "automated_assertion"]
     }
   ],
-  "unresolvedRisks": [
-    "Apple Health is health data — include only with explicit user consent",
-    "notifications permission required for reminders"
-  ]
+  "unknowns": [
+    {
+      "id": "UNK-001",
+      "description": "does the user want daily reminders (which would need notifications) and/or Apple Health sync?",
+      "blocking": false,
+      "safeDefault": "reminders and Health off until the user enables them",
+      "resolutionOwner": "user",
+      "discoveryTrigger": "user enables reminders or Health sync in settings"
+    }
+  ],
+  "unresolvedRisks": ["notifications and any Apple Health integration remain unconfirmed and off by default"],
+  "decisionLog": [
+    { "decision": "default pattern Box 4-4-4-4, audio off / haptics on", "rationale": "unobtrusive focus standard; UI/UX decided for the user", "tier": "auto" },
+    { "decision": "notifications and Health deferred, off by default", "rationale": "both touch sensitive scope; need explicit consent", "tier": "needs_confirmation" }
+  ],
+  "handoff": {
+    "buildMayDecide": ["framework", "exact entitlements", "storage engine", "signing and packaging"],
+    "buildMustPreserve": ["menu-bar-only, never steals focus", "Box 4-4-4-4 default", "offline-only, no network"],
+    "stopConditions": ["any requirement implies a network call", "any account or sign-in is required"],
+    "verificationEvidenceRequired": ["screenshot per UI acceptance test", "automated assertion per behavioral test"]
+  },
+  "changeLog": ["rev1: initial contract"]
 }

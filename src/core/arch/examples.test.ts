@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseArchSpec, ArchSpec, archPhase } from './spec';
+import { parseArchSpec, ArchSpec } from './spec';
 
 const NAMES = ['breathing-timer', 'file-renamer'] as const;
 
@@ -13,98 +13,80 @@ function loadArch(name: string): ArchSpec {
 }
 
 describe('kiln:arch example specs', () => {
-  it('breathing-timer arch validates and traces to its contract', () => {
-    const a = loadArch('breathing-timer');
-    expect(a.stack.language).toBe('Swift');
-    expect(a.tracesTo).toContain('kiln-spec');
-    expect(a.decisionLog.length).toBeGreaterThan(0);
+  it('both examples validate as ready_for_build', () => {
+    for (const name of NAMES) expect(loadArch(name).status).toBe('ready_for_build');
   });
 
-  it('file-renamer arch validates', () => {
-    const a = loadArch('file-renamer');
-    expect(a.stack.language).toBe('Swift');
-    expect(a.reliability.testPlan.length).toBeGreaterThan(0);
+  it('pins the source spec revision', () => {
+    for (const name of NAMES) expect(loadArch(name).sourceSpec.specRevision).toBeGreaterThanOrEqual(1);
   });
 
-  it('chooses the stack per app — different artifact types for different classes', () => {
-    const breathing = loadArch('breathing-timer');
-    const renamer = loadArch('file-renamer');
-    expect(breathing.stack.artifactType).not.toBe(renamer.stack.artifactType);
-    expect(breathing.stack.artifactType).toContain('menu-bar');
-    expect(renamer.stack.artifactType).toContain('window');
-  });
-
-  it('keeps unconfirmed high-risk out of the permission manifest, deferring to openConfirmations', () => {
-    for (const name of NAMES) {
-      const a = loadArch(name);
-      expect(a.permissionManifest).toEqual([]);
-      expect(a.openConfirmations.length).toBeGreaterThan(0);
-    }
-  });
-
-  it('every decision is honest — chosen is exactly one of the options', () => {
+  it('every decided decision has a chosen option among its options (no chosen+pending contradiction)', () => {
     for (const name of NAMES) {
       const a = loadArch(name);
       for (const d of a.decisionLog) {
-        expect(d.options).toContain(d.chosen);
-      }
-    }
-  });
-
-  it('decisionLog covers all seven engineering phases', () => {
-    for (const name of NAMES) {
-      const a = loadArch(name);
-      const phases = new Set(a.decisionLog.map((d) => d.phase));
-      for (const p of archPhase.options) {
-        expect(phases.has(p)).toBe(true);
-      }
-    }
-  });
-
-  it('decisions cite only resolvable, non-refuted evidence', () => {
-    for (const name of NAMES) {
-      const a = loadArch(name);
-      const expById = new Map(a.experiments.map((e) => [e.id, e]));
-      const resIds = new Set(a.research.map((r) => r.id));
-      for (const d of a.decisionLog) {
-        for (const ev of d.evidence) {
-          if (ev.kind === 'experiment') {
-            expect(expById.has(ev.ref)).toBe(true);
-            expect(expById.get(ev.ref)!.verdict).not.toBe('refuted');
-          } else {
-            expect(resIds.has(ev.ref)).toBe(true);
-          }
+        if (d.status === 'decided') {
+          expect(d.chosenOptionId).not.toBeNull();
+          expect(d.options.map((o) => o.id)).toContain(d.chosenOptionId);
+        }
+        if (d.status === 'pending_confirmation') {
+          expect(d.chosenOptionId).toBeNull();
+          expect(d.recommendedOptionId).not.toBeNull();
         }
       }
     }
   });
 
-  it('every open confirmation is a structured, traceable record', () => {
+  it('traces decisions to stable IDs, not field-path strings', () => {
     for (const name of NAMES) {
       const a = loadArch(name);
-      for (const c of a.openConfirmations) {
-        expect(c.decision.length).toBeGreaterThan(0);
-        expect(c.tracesTo.length).toBeGreaterThan(0);
+      for (const d of a.decisionLog) {
+        for (const ref of d.tracesTo) {
+          expect(ref).toMatch(/^(REQ|JRN|CAP|AT)-/);
+        }
       }
     }
   });
 
-  it('research findings carry sources (reverse-engineered, not invented)', () => {
+  it('every coverage row is complete when ready_for_build', () => {
     for (const name of NAMES) {
       const a = loadArch(name);
-      for (const r of a.research) {
-        expect(r.sources.length).toBeGreaterThan(0);
+      for (const row of a.coverageMatrix) expect(row.coverage).toBe('complete');
+    }
+  });
+
+  it('chooses the platform per app — different artifact types for different classes', () => {
+    const b = loadArch('breathing-timer');
+    const r = loadArch('file-renamer');
+    expect(b.platform.artifactTypes).toContain('menu_bar_extra');
+    expect(r.platform.artifactTypes).not.toContain('menu_bar_extra');
+  });
+
+  it('gives every verification record an oracle and required evidence', () => {
+    for (const name of NAMES) {
+      const a = loadArch(name);
+      for (const v of a.reliability.verificationMatrix) {
+        expect(v.oracle.length).toBeGreaterThan(0);
+        expect(v.requiredEvidence.length).toBeGreaterThan(0);
       }
     }
   });
 
-  it('every app has a non-empty logging plan with how-logged for each event', () => {
+  it('decision evidence refs resolve to declared evidence items', () => {
     for (const name of NAMES) {
       const a = loadArch(name);
-      expect(a.loggingPlan.length).toBeGreaterThan(0);
-      for (const l of a.loggingPlan) {
-        expect(l.howLogged.length).toBeGreaterThan(0);
+      const ids = new Set(a.evidence.map((e) => e.id));
+      for (const d of a.decisionLog) {
+        for (const ref of d.evidenceRefs) expect(ids.has(ref)).toBe(true);
       }
+    }
+  });
+
+  it('keeps a clean handoff and separates environment prerequisites from confirmations', () => {
+    for (const name of NAMES) {
+      const a = loadArch(name);
+      expect(a.openConfirmations).toEqual([]);
+      expect(a.environmentPrerequisites.length).toBeGreaterThan(0);
     }
   });
 });

@@ -1,66 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { canDriveBuildSpec } from './provenance';
-import { AnalogClaim } from '../intent/contract';
+import { canDriveBaseline } from './provenance';
+import { AnalogClaim, Source } from '../intent/contract';
 
 const claim = (over: Partial<AnalogClaim>): AnalogClaim => ({
-  claim: 'syncs to cloud',
-  source: '',
+  id: 'C1',
+  claim: 'shows a live preview',
   classification: 'common_pattern',
+  analogFit: 'high',
+  supportCount: 2,
+  evidenceRefs: [],
   confidence: 'medium',
   criticality: 'low',
-  affectsPermissionsOrData: false,
   ...over,
 });
 
-describe('canDriveBuildSpec', () => {
-  it('allows a claim that touches neither permissions nor data, regardless of citation', () => {
-    expect(canDriveBuildSpec(claim({ source: '' }))).toBe(true);
+describe('canDriveBaseline (evidence policy)', () => {
+  it('lets a platform requirement drive the baseline regardless of analog support', () => {
+    expect(canDriveBaseline(claim({ classification: 'platform_requirement', supportCount: 0 }), [])).toBe(true);
   });
 
-  it('blocks an uncited high-criticality permissions/data claim', () => {
-    expect(
-      canDriveBuildSpec(
-        claim({ source: '', criticality: 'high', affectsPermissionsOrData: true }),
-      ),
-    ).toBe(false);
+  it('lets a user-statement-backed claim drive the baseline', () => {
+    const sources: Source[] = [{ id: 'S1', type: 'user_statement', title: 'the user asked for it', supports: [] }];
+    expect(canDriveBaseline(claim({ supportCount: 0, evidenceRefs: ['S1'] }), sources)).toBe(true);
   });
 
-  it('blocks a cited but low-confidence permissions/data claim', () => {
-    expect(
-      canDriveBuildSpec(
-        claim({
-          source: 'https://example.com',
-          confidence: 'low',
-          criticality: 'high',
-          affectsPermissionsOrData: true,
-        }),
-      ),
-    ).toBe(false);
+  it('requires >= 2 not-low-fit analogs for a common pattern', () => {
+    expect(canDriveBaseline(claim({ supportCount: 1 }), [])).toBe(false);
+    expect(canDriveBaseline(claim({ supportCount: 2 }), [])).toBe(true);
   });
 
-  it('blocks a medium-criticality, medium-confidence permissions/data claim (any data claim needs high confidence)', () => {
-    expect(
-      canDriveBuildSpec(
-        claim({
-          source: 'https://example.com',
-          confidence: 'medium',
-          criticality: 'medium',
-          affectsPermissionsOrData: true,
-        }),
-      ),
-    ).toBe(false);
+  it('blocks a single-analog common pattern (no corroboration)', () => {
+    expect(canDriveBaseline(claim({ supportCount: 1, analogFit: 'high' }), [])).toBe(false);
   });
 
-  it('allows a cited high-confidence permissions/data claim', () => {
-    expect(
-      canDriveBuildSpec(
-        claim({
-          source: 'https://example.com',
-          confidence: 'high',
-          criticality: 'high',
-          affectsPermissionsOrData: true,
-        }),
-      ),
-    ).toBe(true);
+  it('never lets an anti-pattern drive the baseline, however common', () => {
+    expect(canDriveBaseline(claim({ classification: 'anti_pattern', supportCount: 5 }), [])).toBe(false);
+  });
+
+  it('rejects low-fit analogs even when numerous', () => {
+    expect(canDriveBaseline(claim({ analogFit: 'low', supportCount: 5 }), [])).toBe(false);
   });
 });

@@ -1,159 +1,160 @@
 {
-  "tracesTo": "breathing-timer.kiln-spec.json",
-  "stack": {
+  "schemaVersion": "1.0",
+  "archRevision": 1,
+  "status": "ready_for_build",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": null },
+  "codexStatus": "off",
+  "architectureSummary": "A single-process native Swift menu-bar app that runs a paced breathing engine with visual and trackpad-haptic cues, persists a few preferences locally, and never touches the network.",
+  "platform": {
+    "artifactTypes": ["macOS_app", "menu_bar_extra"],
     "language": "Swift",
-    "framework": "SwiftUI + AppKit (NSStatusItem)",
-    "artifactType": "native menu-bar macOS app (.app)",
-    "rationale": "Trackpad haptics, a menu-bar presence, and unobtrusive native cues are the market standard for this class and require native APIs — a web/extension wrapper cannot deliver them at quality."
+    "runtime": "native",
+    "uiFrameworks": ["SwiftUI", "AppKit_bridge"],
+    "minimumMacOS": "12.0",
+    "processTopology": "single_process",
+    "buildSystem": "Xcode"
   },
-  "uxStructure": [
-    "NSStatusItem menu-bar icon; click opens a compact SwiftUI popover",
-    "popover: pattern picker (Box 4-4-4-4 default), a big Start control, and a minimalist breathing animation",
-    "states: idle, running (animated guide), paused",
-    "no main window — menu-bar only, never steals focus from the active app"
-  ],
-  "dataModel": {
-    "storage": "UserDefaults",
-    "schema": ["selectedPattern", "customDurations", "soundEnabled (default false)", "hapticEnabled (default true)"],
-    "migration": null
+  "system": {
+    "components": [
+      { "id": "CMP-UI", "responsibility": "menu-bar popover and breathing guide UI", "owns": ["popover", "animation"] },
+      { "id": "CMP-ENGINE", "responsibility": "paced breathing engine and cue scheduling", "owns": ["timer", "haptics", "audio"] },
+      { "id": "CMP-STORE", "responsibility": "preferences persistence", "owns": ["UserDefaults access"] }
+    ],
+    "interfaces": [
+      { "id": "IF-1", "from": "CMP-UI", "to": "CMP-ENGINE", "contract": "start/stop session, observe phase" },
+      { "id": "IF-2", "from": "CMP-ENGINE", "to": "CMP-STORE", "contract": "read/write preferences" }
+    ],
+    "processes": ["single foreground app process"],
+    "dependencyRules": ["UI depends on Engine; Engine depends on Store; no reverse dependencies"]
+  },
+  "ux": {
+    "surfaces": ["menu_bar_extra"],
+    "journeyFlows": [
+      { "journeyId": "JRN-001", "flow": ["click the menu-bar icon", "popover opens", "press Start", "guide animates on cadence", "session completes or user stops"] }
+    ],
+    "stateModel": ["idle", "running", "paused"],
+    "commandModel": ["Start (Return)", "Stop (Esc)"],
+    "accessibilityPlan": ["full keyboard control of start/stop", "VoiceOver labels deferred"]
+  },
+  "data": {
+    "entities": ["Preferences(pattern, durations, soundEnabled, hapticEnabled)"],
+    "invariants": ["durations are positive"],
+    "persistence": "UserDefaults",
+    "migrations": [],
+    "lifecycle": ["written on change", "read on launch"],
+    "concurrency": "main-actor only",
+    "recovery": "fall back to defaults if preferences are corrupt"
   },
   "capabilities": [
-    "NSStatusItem (menu bar)",
-    "NSHapticFeedbackManager (trackpad haptics)",
-    "AVFoundation (optional audio cue)"
+    {
+      "id": "ARCH-CAP-1",
+      "capabilityNeedId": "CAP-001",
+      "mechanism": "NSHapticFeedbackManager",
+      "owningComponent": "CMP-ENGINE",
+      "availability": "Force Touch trackpads, macOS 12+",
+      "fallback": "visual and optional audio cue",
+      "failureBehavior": "degrade silently to the remaining cues"
+    }
   ],
-  "permissionManifest": [],
+  "integrations": { "networkPlan": "none — fully offline", "externalServices": [] },
+  "security": {
+    "threatModel": {
+      "assets": ["user preferences"],
+      "trustBoundaries": ["app sandbox"],
+      "abuseCases": ["none significant — no network and no sensitive data"],
+      "mitigations": ["no network entitlement", "no sensitive permissions"],
+      "residualRisks": []
+    },
+    "effectivePermissionManifest": {
+      "entitlements": ["com.apple.security.app-sandbox"],
+      "tccUsageDescriptions": [],
+      "sandboxAccess": [],
+      "keychainAccess": [],
+      "appGroups": [],
+      "appleEvents": [],
+      "hardenedRuntime": true,
+      "runtimeExceptions": [],
+      "privacyManifestPlan": "no tracking, no required-reason APIs"
+    },
+    "loggingPolicy": "os_log only, no PII, no user content",
+    "secretPolicy": "no secrets"
+  },
   "reliability": {
-    "errorHandling": [
-      "if trackpad haptics are unavailable (no Force Touch trackpad), fall back to visual + audio cues",
-      "if audio playback fails, continue silently with visual + haptic cues"
-    ],
-    "testPlan": [
-      "menu-bar click then Start shows a guide animating on a 4-4-4-4 cadence",
-      "toggling sound off removes audio while visual and haptic cues continue",
-      "quitting and relaunching restores the last pattern and preferences"
+    "failureModel": ["haptics unavailable (no Force Touch)", "audio device unavailable"],
+    "recovery": ["degrade to the remaining cues"],
+    "observability": ["os_log subsystem com.kiln.breathing"],
+    "qualityBudgets": ["session timing within 50ms of cadence"],
+    "verificationMatrix": [
+      { "id": "VER-001", "acceptanceTestId": "AT-001", "level": "ui", "harness": "XCUITest", "preconditions": ["app launched"], "execution": "open popover, press Start", "oracle": ["guide animates on a 4-4-4-4 cadence"], "requiredEvidence": ["screenshot", "automated_assertion"], "environment": ["macOS 12+"], "flakinessControls": ["fixed test clock"] },
+      { "id": "VER-002", "acceptanceTestId": "AT-002", "level": "integration", "harness": "XCTest", "preconditions": ["session running"], "execution": "toggle sound off", "oracle": ["no audio", "visual and haptic continue"], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": [] },
+      { "id": "VER-003", "acceptanceTestId": "AT-003", "level": "system", "harness": "XCUITest", "preconditions": ["session running"], "execution": "switch to another app", "oracle": ["focus stays with the other app", "session keeps running"], "requiredEvidence": ["screenshot", "automated_assertion"], "environment": [], "flakinessControls": [] }
     ]
   },
   "build": {
-    "packaging": ".app bundle built with Swift/Xcode",
-    "signing": "ad-hoc for local run; Developer ID + notarization for distribution"
+    "project": "Xcode project, single app target",
+    "targets": ["BreathingTimer", "BreathingTimerTests"],
+    "configurations": ["Debug", "Release"],
+    "commands": ["xcodebuild -scheme BreathingTimer build", "xcodebuild -scheme BreathingTimer test"],
+    "packaging": ".app bundle",
+    "signing": "Developer ID (ad-hoc for local run)",
+    "notarization": "required for distribution outside the App Store",
+    "ci": ["build", "test", "archive"],
+    "releaseArtifacts": ["BreathingTimer.app", "notarized .dmg"],
+    "reproducibility": "pinned toolchain via .xcode-version"
   },
+  "dependencies": [],
+  "evidence": [
+    { "id": "EV-1", "type": "apple_primary_doc", "title": "NSHapticFeedbackManager", "source": "developer.apple.com", "accessedAt": null, "versionOrDate": null, "supports": ["ARCH-DEC-CAP-1"] },
+    { "id": "EV-2", "type": "experiment", "title": "haptic cadence probe", "source": "isolated Swift probe", "accessedAt": null, "versionOrDate": null, "supports": ["ARCH-DEC-CAP-1"] }
+  ],
   "decisionLog": [
     {
-      "phase": "stack",
-      "options": ["Swift/SwiftUI native menu-bar app", "Node/Raycast extension", "Electron"],
-      "selectionCriteria": "native APIs required for trackpad haptics, menu-bar presence, and unobtrusive feel",
-      "chosen": "Swift/SwiftUI native menu-bar app",
-      "rationale": "only native APIs deliver the market-standard haptic/menu-bar experience",
-      "tier": "auto",
-      "tracesTo": "appClass + baselineRequirements",
-      "evidence": [{ "kind": "research", "ref": "R1" }, { "kind": "experiment", "ref": "E1" }]
+      "id": "ARCH-DEC-STACK-1", "phase": "platformTopology", "question": "which artifact type, language, and UI framework?",
+      "status": "decided", "authority": "delegated", "engineeringRisk": "low", "reversibility": "moderate",
+      "hardConstraints": ["menu-bar presence", "trackpad haptics", "offline-only"],
+      "options": [
+        { "id": "O1", "description": "native Swift menu-bar app (SwiftUI + AppKit)", "advantages": ["native haptics and menu bar"], "disadvantages": [], "eliminatedBy": [] },
+        { "id": "O2", "description": "Electron/web wrapper", "advantages": ["familiar web stack"], "disadvantages": ["no real trackpad haptics", "heavy footprint"], "eliminatedBy": ["hard constraint: trackpad haptics"] }
+      ],
+      "selectionCriteria": [ { "criterion": "trackpad haptics support", "priority": "must" }, { "criterion": "unobtrusive footprint", "priority": "high" } ],
+      "chosenOptionId": "O1", "recommendedOptionId": null,
+      "rationale": "only native APIs deliver the market-standard haptic and menu-bar experience",
+      "rejectedOptions": [ { "optionId": "O2", "reason": "cannot deliver trackpad haptics" } ],
+      "tracesTo": ["REQ-002", "REQ-003", "CAP-001"], "evidenceRefs": [], "confidence": "high",
+      "consequences": ["Swift toolchain required"], "fallback": null, "verificationPlan": "build and run on macOS 12"
     },
     {
-      "phase": "ux",
-      "options": ["menu-bar popover, no main window", "full window", "floating overlay"],
-      "selectionCriteria": "unobtrusive focus tool that never steals focus",
-      "chosen": "menu-bar popover, no main window",
-      "rationale": "market standard for an unobtrusive focus tool",
-      "tier": "auto",
-      "tracesTo": "customDelta",
-      "evidence": []
-    },
-    {
-      "phase": "data",
-      "options": ["UserDefaults", "SQLite", "flat file"],
-      "selectionCriteria": "a few flat preferences, no relational or large data",
-      "chosen": "UserDefaults",
-      "rationale": "smallest mechanism that fits the data shape",
-      "tier": "auto",
-      "tracesTo": "localStorage",
-      "evidence": []
-    },
-    {
-      "phase": "capabilities",
-      "options": ["haptics + audio + visual cues", "visual-only"],
-      "selectionCriteria": "market-standard breathing cues",
-      "chosen": "haptics + audio + visual cues",
-      "rationale": "visual+audio+haptic is the baseline users expect for this class",
-      "tier": "auto",
-      "tracesTo": "baselineRequirements",
-      "evidence": [{ "kind": "research", "ref": "R1" }, { "kind": "experiment", "ref": "E1" }]
-    },
-    {
-      "phase": "security",
-      "options": ["bundle notifications/Health into the manifest", "defer to confirmation"],
-      "selectionCriteria": "least privilege; high-risk items need explicit consent",
-      "chosen": "defer to confirmation",
-      "rationale": "notifications and Health are high-risk and unconfirmed; keep the base app permission-free",
-      "tier": "needs_confirmation",
-      "tracesTo": "unknowns + unresolvedRisks",
-      "evidence": []
-    },
-    {
-      "phase": "reliability",
-      "options": ["assume haptics always available", "graceful degradation"],
-      "selectionCriteria": "robust across Mac hardware without Force Touch",
-      "chosen": "graceful degradation",
-      "rationale": "fall back to visual/audio when haptics are unavailable",
-      "tier": "auto",
-      "tracesTo": "successCriteria",
-      "evidence": [{ "kind": "experiment", "ref": "E1" }]
-    },
-    {
-      "phase": "build",
-      "options": [".app ad-hoc local / Developer ID distribution", "Mac App Store"],
-      "selectionCriteria": "local-first utility, optional distribution",
-      "chosen": ".app ad-hoc local / Developer ID distribution",
-      "rationale": "no App Store constraints needed for a local utility",
-      "tier": "auto",
-      "tracesTo": "appClass",
-      "evidence": []
+      "id": "ARCH-DEC-CAP-1", "phase": "integrationsCapabilities", "question": "how to implement the haptic cue?",
+      "status": "decided", "authority": "inherited", "engineeringRisk": "medium", "reversibility": "easy",
+      "hardConstraints": ["CAP-001 is confirmed_by_request"],
+      "options": [ { "id": "H1", "description": "NSHapticFeedbackManager pulses on a timer", "advantages": ["native", "synced to cadence"], "disadvantages": ["no-op without Force Touch"], "eliminatedBy": [] } ],
+      "selectionCriteria": [ { "criterion": "rhythmic synced cue", "priority": "must" } ],
+      "chosenOptionId": "H1", "recommendedOptionId": null,
+      "rationale": "experiment EV-2 confirmed reliable rhythmic haptics; the capability is already confirmed by the request",
+      "rejectedOptions": [], "tracesTo": ["CAP-001", "REQ-002"], "evidenceRefs": ["EV-1", "EV-2"], "confidence": "high",
+      "consequences": ["graceful degradation needed on non-Force-Touch hardware"], "fallback": "visual and audio cue", "verificationPlan": "VER-001"
     }
   ],
-  "openConfirmations": [
-    {
-      "decision": "notifications permission for daily reminders",
-      "rationale": "only if the user enables reminders; touches the notifications permission",
-      "tracesTo": "unknowns (does the user want daily reminders?)"
-    },
-    {
-      "decision": "Apple Health write for mindful minutes",
-      "rationale": "health data; include only with explicit user consent",
-      "tracesTo": "unresolvedRisks (Apple Health is health data)"
-    }
+  "coverageMatrix": [
+    { "requirementId": "REQ-001", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-STACK-1"], "componentIds": ["CMP-UI", "CMP-ENGINE"], "capabilityIds": [], "verificationIds": ["VER-001"], "coverage": "complete" },
+    { "requirementId": "REQ-002", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-CAP-1"], "componentIds": ["CMP-ENGINE"], "capabilityIds": ["ARCH-CAP-1"], "verificationIds": ["VER-002"], "coverage": "complete" },
+    { "requirementId": "REQ-003", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-STACK-1"], "componentIds": ["CMP-UI"], "capabilityIds": [], "verificationIds": ["VER-003"], "coverage": "complete" }
   ],
-  "research": [
-    {
-      "id": "R1",
-      "feature": "trackpad haptic breathing cue",
-      "finding": "menu-bar breathing apps drive NSHapticFeedbackManager pulses synced to each breath phase rather than relying on sound",
-      "sources": ["BreathePulse (macmenubar.com)", "github.com/akaalias/menu-bar-breathing"]
-    }
+  "assumptions": ["the user runs macOS 12 or later"],
+  "risks": ["non-Force-Touch hardware loses the haptic cue (mitigated by fallback)"],
+  "openConfirmations": [],
+  "environmentPrerequisites": [
+    { "id": "ENV-1", "prerequisite": "Xcode + Swift toolchain", "affects": "build", "detectionMethod": "xcodebuild -version", "fallback": null, "blocking": true },
+    { "id": "ENV-2", "prerequisite": "Developer ID for notarized distribution", "affects": "release", "detectionMethod": "security find-identity -v -p codesigning", "fallback": "ad-hoc signing for local run", "blocking": false }
   ],
-  "experiments": [
-    {
-      "id": "E1",
-      "hypothesis": "NSHapticFeedbackManager can drive a rhythmic 4-4-4-4 haptic cue on a timer",
-      "method": "isolated Swift probe pulsing haptics on a repeating timer, no UI",
-      "result": "haptics fire reliably on Force Touch trackpads; no-op on non-Force-Touch hardware",
-      "verdict": "confirmed"
-    }
-  ],
-  "loggingPlan": [
-    {
-      "event": "session start/stop with the selected pattern",
-      "why": "diagnose if sessions fail to start or end early",
-      "howLogged": "os_log unified logging, subsystem com.kiln.breathing"
-    },
-    {
-      "event": "haptics-unavailable fallback engaged",
-      "why": "know when a user silently lost the haptic cue",
-      "howLogged": "os_log at .info level"
-    },
-    {
-      "event": "audio playback failure fallback engaged",
-      "why": "know when the audio cue silently dropped (matches the errorHandling path)",
-      "howLogged": "os_log at .error level, subsystem com.kiln.breathing"
-    }
-  ]
+  "handoff": {
+    "buildMustImplement": ["menu-bar popover", "paced breathing engine", "visual and haptic cues"],
+    "buildMustPreserve": ["menu-bar-only, never steals focus", "Box 4-4-4-4 default", "offline-only"],
+    "buildMustNotDo": ["no network", "no account", "no analytics"],
+    "buildMayDecide": ["exact view decomposition", "internal helper implementations", "animation easing"],
+    "stopConditions": ["any requirement implies a network call", "any account is required"],
+    "expectedArtifacts": ["BreathingTimer.app", "test suite"],
+    "requiredVerificationEvidence": ["screenshot per UI test", "automated assertion per behavioral test"]
+  },
+  "changeLog": ["rev1: initial architecture"]
 }

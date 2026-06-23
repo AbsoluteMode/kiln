@@ -1,0 +1,29 @@
+{
+  "tracesTo": "file-renamer.kiln-arch.json",
+  "tests": {
+    "framework": "XCTest",
+    "written": 3,
+    "passing": 3,
+    "files": ["FileRenamerTests.swift"]
+  },
+  "loggingImplemented": [
+    "os_log subsystem com.kiln.renamer"
+  ],
+  "review": {
+    "reviewer": "self",
+    "verdict": "pass",
+    "notes": [
+      "all 3 acceptance tests pass (live preview, undo, conflict block)",
+      "loggingPlan wired via os_log subsystem com.kiln.renamer",
+      "file access deferred — not in permissionManifest until the user confirms scope"
+    ]
+  },
+  "artifacts": [
+    "FileRenamer.app",
+    "Sources/FileRenamer/FileRenamerApp.swift",
+    "Sources/FileRenamer/RenameEngine.swift"
+  ],
+  "openRisks": [
+    "file-system access scope unconfirmed (arch openConfirmations)"
+  ]
+}

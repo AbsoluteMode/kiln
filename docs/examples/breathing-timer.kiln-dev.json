@@ -1,0 +1,29 @@
+{
+  "tracesTo": "breathing-timer.kiln-arch.json",
+  "tests": {
+    "framework": "XCTest",
+    "written": 3,
+    "passing": 3,
+    "files": ["BreathingTimerTests.swift"]
+  },
+  "loggingImplemented": [
+    "os_log subsystem com.kiln.breathing"
+  ],
+  "review": {
+    "reviewer": "self",
+    "verdict": "pass",
+    "notes": [
+      "all 3 acceptance tests pass (4-4-4-4 cadence, sound toggle, persistence)",
+      "loggingPlan fully wired via os_log subsystem com.kiln.breathing",
+      "permissionManifest empty — notifications and Health are deferred, not requested"
+    ]
+  },
+  "artifacts": [
+    "BreathingTimer.app",
+    "Sources/BreathingTimer/BreathingTimerApp.swift",
+    "Sources/BreathingTimer/HapticEngine.swift"
+  ],
+  "openRisks": [
+    "notifications and Apple Health remain unconfirmed (arch openConfirmations)"
+  ]
+}
