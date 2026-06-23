@@ -61,4 +61,16 @@ describe('kiln:dev v2 build reports', () => {
     raw.sourceArch.contentDigest = null;
     expect(() => parseDevReport(raw)).toThrow();
   });
+
+  it('rejects an implementation unit with no trace (no dangling code)', () => {
+    const raw = loadRaw('breathing-timer');
+    raw.implementationUnits[0].tracesTo = [];
+    expect(() => parseDevReport(raw)).toThrow();
+  });
+
+  it('rejects ready_for_validation with an unresolved external-blocker defect', () => {
+    const raw = loadRaw('breathing-timer');
+    raw.defects.push({ id: 'BUG-002', severity: 'medium', status: 'external_blocker', summary: 'blocked on upstream API' });
+    expect(() => parseDevReport(raw)).toThrow();
+  });
 });

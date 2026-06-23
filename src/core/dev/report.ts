@@ -1,3 +1,4 @@
+// WHY: docs/decisions/2026-06-24-kiln-dev-sliced-adoption.md
 import { z } from 'zod';
 
 /**
@@ -28,7 +29,8 @@ export const implementationUnit = z
     id: z.string().min(1),
     componentId: z.string().min(1),
     interfaceIds: idList,
-    tracesTo: idList,
+    // Every unit must be justified — no dangling, untraced implementation.
+    tracesTo: z.array(z.string().min(1)).min(1),
     files: z.array(z.object({ path: z.string().min(1), symbols: z.array(z.string()) }).strict()),
     verificationIds: idList,
     status: z.enum(['implemented', 'partial', 'blocked']),
@@ -108,7 +110,7 @@ export const devReportSchema = z
         }
       }
       for (const bug of d.defects) {
-        if (bug.status === 'open' || bug.status === 'reproduced') {
+        if (bug.status === 'open' || bug.status === 'reproduced' || bug.status === 'external_blocker') {
           ctx.addIssue({ code: 'custom', message: `ready_for_validation: defect ${bug.id} is still ${bug.status}` });
         }
       }

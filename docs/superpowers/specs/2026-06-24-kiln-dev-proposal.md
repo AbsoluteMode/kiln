@@ -1,6 +1,11 @@
 # kiln:dev — surgical implementation, diagnostics and verification stage (PROPOSAL UNDER REVIEW)
 
-> Status: candidate replacement for commands/dev.md. Under evaluation (Claude + Codex) 2026-06-24. NOT yet adopted.
+> **Status: SUPERSEDED by sliced adoption (2026-06-24).** Evaluated by Claude + Codex → verdict **slice-it**.
+> This file is the full **north-star vision**, NOT the live contract. It still uses the proposal's original
+> `ADR-*`/`IFC-*` ids and `ready_for_user`/artifact-manifest outputs — **the adopted contracts differ**: we kept
+> `ARCH-DEC-*`/`IF-*`, the dev stage stops at `ready_for_validation` (validate owns `ready_for_user`), and all
+> build-artifact machinery is deferred until a real build stage exists. Source of truth = `src/core/` +
+> `commands/dev.md`; the decision = `docs/decisions/2026-06-24-kiln-dev-sliced-adoption.md`.
 
 allowed-tools: Read, Glob, Grep, Edit, Write, Bash, WebSearch
 
