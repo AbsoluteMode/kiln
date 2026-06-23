@@ -89,4 +89,12 @@ describe('kiln:arch example specs', () => {
       expect(a.environmentPrerequisites.length).toBeGreaterThan(0);
     }
   });
+
+  it('rejects a coverage row that references a phantom arch-internal id', () => {
+    const raw = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'docs/examples', 'breathing-timer.kiln-arch.json'), 'utf8'),
+    );
+    raw.coverageMatrix[0].componentIds.push('CMP-DOES-NOT-EXIST');
+    expect(() => parseArchSpec(raw)).toThrow();
+  });
 });

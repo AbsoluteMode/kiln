@@ -280,6 +280,24 @@ export const archSpecSchema = z
         ctx.addIssue({ code: 'custom', message: `openConfirmation ${oc.id} triggered by unknown decision: ${oc.triggeredByDecisionId}` });
       }
     }
+    // Coverage rows must reference real arch-internal ids (referential integrity).
+    const componentIds = new Set(spec.system.components.map((c) => c.id));
+    const capabilityIds = new Set(spec.capabilities.map((c) => c.id));
+    const verificationIds = new Set(spec.reliability.verificationMatrix.map((vr) => vr.id));
+    for (const row of spec.coverageMatrix) {
+      for (const id of row.decisionIds) {
+        if (!decisionIds.has(id)) ctx.addIssue({ code: 'custom', message: `coverage row ${row.requirementId} references unknown decision: ${id}` });
+      }
+      for (const id of row.componentIds) {
+        if (!componentIds.has(id)) ctx.addIssue({ code: 'custom', message: `coverage row ${row.requirementId} references unknown component: ${id}` });
+      }
+      for (const id of row.capabilityIds) {
+        if (!capabilityIds.has(id)) ctx.addIssue({ code: 'custom', message: `coverage row ${row.requirementId} references unknown capability: ${id}` });
+      }
+      for (const id of row.verificationIds) {
+        if (!verificationIds.has(id)) ctx.addIssue({ code: 'custom', message: `coverage row ${row.requirementId} references unknown verification: ${id}` });
+      }
+    }
     // Ready gate (review #12): ready_for_build demands no open confirmations,
     // no pending decisions, and complete coverage.
     if (spec.status === 'ready_for_build') {

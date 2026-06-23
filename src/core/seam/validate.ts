@@ -68,13 +68,19 @@ export function validateArchAgainstIntent(arch: ArchSpec, intent: IntentContract
     acceptanceTestIds.has(id) ||
     capabilityNeedIds.has(id);
 
-  // 1. Every decision traces to a real intent id (no stale REQ-/JRN-/CAP-/AT- refs).
-  for (const d of arch.decisionLog) {
-    for (const ref of d.tracesTo) {
+  // 1. Every `tracesTo` in the arch — on decisions, dependencies, AND open
+  //    confirmations — must resolve to a real intent id (no stale REQ-/JRN-/CAP-/AT-).
+  const tracedObjects: Array<{ label: string; tracesTo: string[] }> = [
+    ...arch.decisionLog.map((d) => ({ label: `decision ${d.id}`, tracesTo: d.tracesTo })),
+    ...arch.dependencies.map((dep) => ({ label: `dependency ${dep.id}`, tracesTo: dep.tracesTo })),
+    ...arch.openConfirmations.map((oc) => ({ label: `openConfirmation ${oc.id}`, tracesTo: oc.tracesTo })),
+  ];
+  for (const obj of tracedObjects) {
+    for (const ref of obj.tracesTo) {
       if (!resolvesToIntentId(ref)) {
         violations.push({
           code: 'unresolved_traces_to',
-          message: `decision ${d.id} traces to unknown intent id "${ref}"`,
+          message: `${obj.label} traces to unknown intent id "${ref}"`,
         });
       }
     }
