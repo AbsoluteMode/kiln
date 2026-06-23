@@ -74,10 +74,7 @@
   "dataFlows": [
     "user preferences read/written locally; no data leaves the machine by default"
   ],
-  "permissions": [
-    "notifications (only if reminders enabled — needs confirmation)",
-    "Apple Health write (only if mindful-minutes sync enabled — needs confirmation)"
-  ],
+  "permissions": [],
   "externalServices": [],
   "localStorage": [
     "selected pattern, custom durations, sound/haptic preferences"
@@ -109,12 +106,12 @@
     {
       "decision": "daily reminders via notifications",
       "rationale": "common pattern but touches the notifications permission",
-      "tier": "confirmed"
+      "tier": "needs_confirmation"
     },
     {
       "decision": "Apple Health sync for mindful minutes",
       "rationale": "touches health data — high risk; only with explicit consent",
-      "tier": "confirmed"
+      "tier": "needs_confirmation"
     }
   ],
   "unresolvedRisks": [

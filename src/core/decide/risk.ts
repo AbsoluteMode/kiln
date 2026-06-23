@@ -1,4 +1,4 @@
-export type RiskTier = 'auto' | 'confirm';
+export type RiskTier = 'auto' | 'needs_confirmation';
 
 export type DecisionDomain =
   | 'permissions'
@@ -18,5 +18,5 @@ const HIGH_RISK_DOMAINS: ReadonlySet<DecisionDomain> = new Set([
 ]);
 
 export function classifyRisk(domain: DecisionDomain): RiskTier {
-  return HIGH_RISK_DOMAINS.has(domain) ? 'confirm' : 'auto';
+  return HIGH_RISK_DOMAINS.has(domain) ? 'needs_confirmation' : 'auto';
 }

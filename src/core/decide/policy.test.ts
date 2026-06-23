@@ -17,7 +17,7 @@ describe('resolveDecision', () => {
 
   it('holds high-risk decisions for confirmation', () => {
     const r = resolveDecision({ ...base, domain: 'permissions' });
-    expect(r.tier).toBe('confirm');
+    expect(r.tier).toBe('needs_confirmation');
     expect(r.applied).toBe(false);
     expect(r.needsConfirmation).toBe(true);
   });

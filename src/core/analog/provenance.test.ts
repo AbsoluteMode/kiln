@@ -13,7 +13,7 @@ const claim = (over: Partial<AnalogClaim>): AnalogClaim => ({
 });
 
 describe('canDriveBuildSpec', () => {
-  it('allows a low-criticality claim regardless of citation', () => {
+  it('allows a claim that touches neither permissions nor data, regardless of citation', () => {
     expect(canDriveBuildSpec(claim({ source: '' }))).toBe(true);
   });
 
@@ -25,7 +25,7 @@ describe('canDriveBuildSpec', () => {
     ).toBe(false);
   });
 
-  it('blocks a cited but low-confidence high-criticality data claim', () => {
+  it('blocks a cited but low-confidence permissions/data claim', () => {
     expect(
       canDriveBuildSpec(
         claim({
@@ -38,7 +38,20 @@ describe('canDriveBuildSpec', () => {
     ).toBe(false);
   });
 
-  it('allows a cited high-confidence high-criticality data claim', () => {
+  it('blocks a medium-criticality, medium-confidence permissions/data claim (any data claim needs high confidence)', () => {
+    expect(
+      canDriveBuildSpec(
+        claim({
+          source: 'https://example.com',
+          confidence: 'medium',
+          criticality: 'medium',
+          affectsPermissionsOrData: true,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('allows a cited high-confidence permissions/data claim', () => {
     expect(
       canDriveBuildSpec(
         claim({

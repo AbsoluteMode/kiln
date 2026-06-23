@@ -20,6 +20,6 @@ export function resolveDecision(d: Decision): Resolution {
     decisionId: d.id,
     tier,
     applied: tier === 'auto',
-    needsConfirmation: tier === 'confirm',
+    needsConfirmation: tier === 'needs_confirmation',
   };
 }

@@ -30,12 +30,14 @@ Use `AskUserQuestion` **only** when the uncertainty is **(a) real** — you cann
 
 ## Resolving contested points — two rules
 
-1. **UI/UX ambiguities → decide for the user, in favor of usability.** Layout, defaults, placement, interaction details — do **not** ask; pick the best-in-class choice and log it. This is "decide for me."
-2. **High-risk surfaced by research → confirm, never auto.** If analogs "usually" do cloud sync, telemetry, account creation, network calls, broad file access, or paid third-party APIs, that is **not** a free default — it touches the user's data and trust. Ask, or record it as a decision needing confirmation. *You decide the UI; you confirm the data and permissions.*
+1. **UI/UX ambiguities → decide for the user, in favor of usability.** Layout, defaults, placement, interaction details — do **not** ask; pick the best-in-class choice and log it as `tier: "auto"`. This is "decide for me."
+2. **High-risk surfaced by research → confirm, never auto.** If analogs "usually" do cloud sync, telemetry, account creation, network calls, broad file access, or paid third-party APIs, that is **not** a free default — it touches the user's data and trust. Record it as `tier: "needs_confirmation"` and ask, or surface it for the user to confirm. *You decide the UI; you confirm the data and permissions.*
+
+**Priority — high-risk overrides the governing principle.** When a high-risk decision *could* in principle be inferred, the confirmation requirement still wins: high-risk always confirms. The governing principle only suppresses questions about *low-risk* intent. You decide the UI freely; you never auto-accept data, permissions, or network behavior.
 
 ## Provenance — the trust layer applies to you too
 
-Every market-standard claim that touches **permissions or data** must carry a source (the `WebSearch` result that backs it) and high confidence before it enters the spec. An uncited, high-criticality claim about data or permissions does **not** drive the spec — record it under `unknowns` / `mustAskIfDiscovered` instead. Don't vibe the parts that can hurt the user.
+Every claim that touches **permissions or data** must carry a source (the `WebSearch` result that backs it) **and** high confidence before it enters the spec as accepted. This holds for **any** such claim, not only the obviously critical ones. A permissions/data claim that is uncited or below high confidence does **not** drive the spec and must **not** appear in `permissions`, `baselineRequirements`, or `externalServices` — record it under `unknowns` / `mustAskIfDiscovered` / `unresolvedRisks` instead. Don't vibe the parts that can hurt the user.
 
 ## Output — the build spec (intent contract)
 
@@ -50,29 +52,37 @@ Assemble the spec and `Write` it to `kiln-spec.json` in the working directory, w
       "confidence": "low | medium | high", "criticality": "low | medium | high",
       "affectsPermissionsOrData": false }
   ],
-  "baselineRequirements": ["string"],   // market standard for the class
-  "customDelta": ["string"],            // the user's unique ask
-  "successCriteria": ["string"],        // how the user knows they got their thing
-  "acceptanceTests": ["string"],        // concrete checks: intent → tests → build
+  "baselineRequirements": ["string"],   // market standard for the class (≥1)
+  "customDelta": ["string"],            // the user's unique ask (may be empty)
+  "successCriteria": ["string"],        // how the user knows they got their thing (≥1)
+  "acceptanceTests": ["string"],        // concrete checks: intent → tests → build (≥1)
   "dataFlows": ["string"],
-  "permissions": ["string"],
+  "permissions": ["string"],            // only accepted (cited, high-confidence) permissions
   "externalServices": ["string"],
   "localStorage": ["string"],
   "unknowns": ["string"],
   "mustAskIfDiscovered": ["string"],    // trip-wires for the build stage
-  "decisionLog": [ { "decision": "string", "rationale": "string", "tier": "auto | confirmed" } ],
+  "decisionLog": [ { "decision": "string", "rationale": "string", "tier": "auto | needs_confirmation | confirmed" } ],
   "unresolvedRisks": ["string"]
 }
 ```
 
+Invariant to honor: any permissions/data item you are not certain about belongs in `unknowns`/`unresolvedRisks`, **never** in `permissions`. A `needs_confirmation` decision may reference it, but it is not an accepted permission until the user confirms.
+
 Then end with a short, **human-language** recap (not JSON):
 
-> Here's what I understood: a **[appClass]** that **[core job]**, built to the standard of **[analogs]**, with your twist: **[customDelta]**. I decided **[N auto decisions]** for you in favor of usability. Please confirm: **[any high-risk items]**.
+> Here's what I understood: a **[appClass]** that **[core job]**, built to the standard of **[analogs]**, with your twist: **[customDelta]**. I decided **[N auto decisions]** for you in favor of usability. Please confirm: **[any needs_confirmation items]**.
 
 ## Codex cooperation (efficiency boost)
 
 If Codex is installed (`codex` on PATH) and the request is non-trivial, note to the user that the later build/review stages can delegate to Codex through Claude Code for higher quality — a second engine catches what one misses. Offer it; don't force it.
 
-## Reusability
+## Reusability — refinement on rework
 
-This stage is reusable: it runs at first creation **and** when reworking an existing app (read the current `kiln-spec.json` first and refine it rather than starting over).
+This stage runs both at first creation **and** when reworking an existing app. On rework:
+
+1. `Read` the current `kiln-spec.json` and validate its shape before changing anything.
+2. **Preserve** every decision already at `tier: "confirmed"` — do not silently revert a choice the user confirmed.
+3. Apply the new request as a delta: add a one-line entry to `decisionLog` for each change, and move superseded items to `unresolvedRisks` rather than deleting them.
+4. **Re-gate only changed or new claims** through provenance — don't re-litigate untouched ones.
+5. Keep carried-over decisions and new decisions distinguishable in the recap, so the user sees exactly what changed.

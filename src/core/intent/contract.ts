@@ -27,17 +27,17 @@ export type AnalogClaim = z.infer<typeof analogClaim>;
 export const decisionLogEntry = z.object({
   decision: z.string(),
   rationale: z.string(),
-  tier: z.enum(['auto', 'confirmed']),
+  tier: z.enum(['auto', 'needs_confirmation', 'confirmed']),
 });
 export type DecisionLogEntry = z.infer<typeof decisionLogEntry>;
 
 export const intentContractSchema = z.object({
   appClass: z.string().min(1),
-  analogClaims: z.array(analogClaim),
-  baselineRequirements: z.array(z.string()),
-  customDelta: z.array(z.string()),
-  successCriteria: z.array(z.string()),
-  acceptanceTests: z.array(z.string()),
+  analogClaims: z.array(analogClaim).min(1),
+  baselineRequirements: z.array(z.string().min(1)).min(1),
+  customDelta: z.array(z.string().min(1)),
+  successCriteria: z.array(z.string().min(1)).min(1),
+  acceptanceTests: z.array(z.string().min(1)).min(1),
   dataFlows: z.array(z.string()),
   permissions: z.array(z.string()),
   externalServices: z.array(z.string()),

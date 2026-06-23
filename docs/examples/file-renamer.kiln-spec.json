@@ -102,7 +102,7 @@
     {
       "decision": "file-system access scoped to user-selected folders",
       "rationale": "core function but touches the user's files — confirm the scope, least privilege",
-      "tier": "confirmed"
+      "tier": "needs_confirmation"
     }
   ],
   "unresolvedRisks": [

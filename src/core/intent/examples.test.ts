@@ -39,4 +39,14 @@ describe('kiln:start example specs', () => {
     expect(menubar).toBeDefined();
     expect(canDriveBuildSpec(menubar!)).toBe(true);
   });
+
+  it('keeps provenance-rejected high-risk claims out of permissions (recorded as risks instead)', () => {
+    const c = loadSpec('breathing-timer');
+    const health = c.analogClaims.find((x) => x.claim.includes('Apple Health'))!;
+    expect(canDriveBuildSpec(health)).toBe(false);
+    const permissionsBlob = c.permissions.join(' ').toLowerCase();
+    const safetyBlob = [...c.unknowns, ...c.unresolvedRisks].join(' ').toLowerCase();
+    expect(permissionsBlob).not.toContain('apple health');
+    expect(safetyBlob).toContain('apple health');
+  });
 });
