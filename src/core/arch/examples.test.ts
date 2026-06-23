@@ -61,12 +61,49 @@ describe('kiln:arch example specs', () => {
     }
   });
 
+  it('decisions cite only resolvable, non-refuted evidence', () => {
+    for (const name of NAMES) {
+      const a = loadArch(name);
+      const expById = new Map(a.experiments.map((e) => [e.id, e]));
+      const resIds = new Set(a.research.map((r) => r.id));
+      for (const d of a.decisionLog) {
+        for (const ev of d.evidence) {
+          if (ev.kind === 'experiment') {
+            expect(expById.has(ev.ref)).toBe(true);
+            expect(expById.get(ev.ref)!.verdict).not.toBe('refuted');
+          } else {
+            expect(resIds.has(ev.ref)).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
   it('every open confirmation is a structured, traceable record', () => {
     for (const name of NAMES) {
       const a = loadArch(name);
       for (const c of a.openConfirmations) {
         expect(c.decision.length).toBeGreaterThan(0);
         expect(c.tracesTo.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('research findings carry sources (reverse-engineered, not invented)', () => {
+    for (const name of NAMES) {
+      const a = loadArch(name);
+      for (const r of a.research) {
+        expect(r.sources.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('every app has a non-empty logging plan with how-logged for each event', () => {
+    for (const name of NAMES) {
+      const a = loadArch(name);
+      expect(a.loggingPlan.length).toBeGreaterThan(0);
+      for (const l of a.loggingPlan) {
+        expect(l.howLogged.length).toBeGreaterThan(0);
       }
     }
   });

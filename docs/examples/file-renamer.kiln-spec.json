@@ -73,9 +73,7 @@
   "dataFlows": [
     "reads file names and metadata from user-selected folders; writes (renames) only on explicit apply; nothing leaves the machine"
   ],
-  "permissions": [
-    "file-system access to user-selected folders (core function — confirm scope)"
-  ],
+  "permissions": [],
   "externalServices": [],
   "localStorage": [
     "recent rules / presets (optional)"

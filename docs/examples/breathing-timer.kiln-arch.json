@@ -46,7 +46,8 @@
       "chosen": "Swift/SwiftUI native menu-bar app",
       "rationale": "only native APIs deliver the market-standard haptic/menu-bar experience",
       "tier": "auto",
-      "tracesTo": "appClass + baselineRequirements (trackpad haptic cue, menu-bar presence)"
+      "tracesTo": "appClass + baselineRequirements",
+      "evidence": [{ "kind": "research", "ref": "R1" }, { "kind": "experiment", "ref": "E1" }]
     },
     {
       "phase": "ux",
@@ -55,7 +56,8 @@
       "chosen": "menu-bar popover, no main window",
       "rationale": "market standard for an unobtrusive focus tool",
       "tier": "auto",
-      "tracesTo": "customDelta (focus during work, runs during calls)"
+      "tracesTo": "customDelta",
+      "evidence": []
     },
     {
       "phase": "data",
@@ -64,7 +66,8 @@
       "chosen": "UserDefaults",
       "rationale": "smallest mechanism that fits the data shape",
       "tier": "auto",
-      "tracesTo": "localStorage (selected pattern, durations, prefs)"
+      "tracesTo": "localStorage",
+      "evidence": []
     },
     {
       "phase": "capabilities",
@@ -73,7 +76,8 @@
       "chosen": "haptics + audio + visual cues",
       "rationale": "visual+audio+haptic is the baseline users expect for this class",
       "tier": "auto",
-      "tracesTo": "baselineRequirements (visual + audio + trackpad haptic cues)"
+      "tracesTo": "baselineRequirements",
+      "evidence": [{ "kind": "research", "ref": "R1" }, { "kind": "experiment", "ref": "E1" }]
     },
     {
       "phase": "security",
@@ -82,7 +86,8 @@
       "chosen": "defer to confirmation",
       "rationale": "notifications and Health are high-risk and unconfirmed; keep the base app permission-free",
       "tier": "needs_confirmation",
-      "tracesTo": "unknowns + unresolvedRisks (reminders, Apple Health)"
+      "tracesTo": "unknowns + unresolvedRisks",
+      "evidence": []
     },
     {
       "phase": "reliability",
@@ -91,7 +96,8 @@
       "chosen": "graceful degradation",
       "rationale": "fall back to visual/audio when haptics are unavailable",
       "tier": "auto",
-      "tracesTo": "successCriteria (cues stay in sync with the pattern)"
+      "tracesTo": "successCriteria",
+      "evidence": [{ "kind": "experiment", "ref": "E1" }]
     },
     {
       "phase": "build",
@@ -100,7 +106,8 @@
       "chosen": ".app ad-hoc local / Developer ID distribution",
       "rationale": "no App Store constraints needed for a local utility",
       "tier": "auto",
-      "tracesTo": "appClass (local menu-bar utility)"
+      "tracesTo": "appClass",
+      "evidence": []
     }
   ],
   "openConfirmations": [
@@ -113,6 +120,40 @@
       "decision": "Apple Health write for mindful minutes",
       "rationale": "health data; include only with explicit user consent",
       "tracesTo": "unresolvedRisks (Apple Health is health data)"
+    }
+  ],
+  "research": [
+    {
+      "id": "R1",
+      "feature": "trackpad haptic breathing cue",
+      "finding": "menu-bar breathing apps drive NSHapticFeedbackManager pulses synced to each breath phase rather than relying on sound",
+      "sources": ["BreathePulse (macmenubar.com)", "github.com/akaalias/menu-bar-breathing"]
+    }
+  ],
+  "experiments": [
+    {
+      "id": "E1",
+      "hypothesis": "NSHapticFeedbackManager can drive a rhythmic 4-4-4-4 haptic cue on a timer",
+      "method": "isolated Swift probe pulsing haptics on a repeating timer, no UI",
+      "result": "haptics fire reliably on Force Touch trackpads; no-op on non-Force-Touch hardware",
+      "verdict": "confirmed"
+    }
+  ],
+  "loggingPlan": [
+    {
+      "event": "session start/stop with the selected pattern",
+      "why": "diagnose if sessions fail to start or end early",
+      "howLogged": "os_log unified logging, subsystem com.kiln.breathing"
+    },
+    {
+      "event": "haptics-unavailable fallback engaged",
+      "why": "know when a user silently lost the haptic cue",
+      "howLogged": "os_log at .info level"
+    },
+    {
+      "event": "audio playback failure fallback engaged",
+      "why": "know when the audio cue silently dropped (matches the errorHandling path)",
+      "howLogged": "os_log at .error level, subsystem com.kiln.breathing"
     }
   ]
 }

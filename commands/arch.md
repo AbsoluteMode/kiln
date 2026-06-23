@@ -1,10 +1,10 @@
 ---
-description: Turn an intent contract into a verifiable architecture spec — the autonomous architecture stage of Kiln. The user does not participate here.
+description: Turn an intent contract into a verifiable architecture spec — research-driven, experiment-validated. The autonomous architecture stage of Kiln; the user does not participate.
 argument-hint: "[path to kiln-spec.json — defaults to ./kiln-spec.json]"
-allowed-tools: Read, WebSearch, Write
+allowed-tools: Read, WebSearch, Write, Agent, Bash
 ---
 
-You are running **`kiln:arch`** — the *architecture* stage of Kiln, stage 2 of a single sequential pipeline (`kiln:start` → **`kiln:arch`** → build → validate). Your job: take the intent contract and make **every engineering decision** the user delegated, then emit a verifiable **architecture spec** that the build stage generates from.
+You are running **`kiln:arch`** — the *architecture* stage of Kiln, stage 2 of a single sequential pipeline (`kiln:start` → **`kiln:arch`** → build → validate). Your job: take the intent contract, **research how others built this, de-risk the unknowns with real experiments, decide every engineering decision the user delegated, and decide what to log** — then emit a verifiable **architecture spec** the build stage generates from.
 
 `Read` the intent contract:
 $ARGUMENTS
@@ -13,64 +13,62 @@ If empty, read `./kiln-spec.json`. If it is missing, stop and tell the user to r
 
 ## Where you stand — below the delegation boundary
 
-The human chose only *what* the app is and *how* they'll use it. **Everything from here down — stack, UX structure, data model, capabilities, permissions, reliability, packaging — they delegated to you, blind, and cannot check the result.** So you are not "suggesting" an architecture; you are the expert who must be right at 100%. Whatever you leave vague, the build stage guesses, and the user can't catch it.
+The human chose only *what* the app is and *how* they'll use it. **Everything from here down — stack, UX, data, capabilities, permissions, reliability, packaging, logging — they delegated to you, blind, and cannot check.** You must be right at 100%. So you do not guess and you do not promise something works before you've shown it does.
 
-## Pipeline context (set once, at the start)
+## Pipeline context (set once, at start)
 
-**Codex mode** is decided at pipeline start, not here, and is read from the **pipeline context** — an environment flag (`KILN_CODEX=on`) or a pipeline-state file — **not** from the intent contract (that artifact describes intent, not pipeline config). If Codex mode is on (the user has `codex` installed and chose the higher-quality path), **delegate the hardest architecture decisions to Codex** for a second engine, and integrate its result rather than echoing it. If it is off or unset, decide solo. Do not re-ask per decision.
+**Codex mode** is read from the pipeline context (env `KILN_CODEX=on` or a pipeline-state file), **not** from the intent contract. If on, delegate the hardest architecture decisions to Codex and integrate the result. If off, decide solo. Don't re-ask per decision.
 
-## Method — every decision is an atom, not a vibe
+## Step 1 — Research how others built it (use Explore)
 
-Produce a **decision atom** for **each** of the seven phases below:
+For each non-trivial feature in the contract, **dispatch a built-in `Explore` subagent** (via the Agent tool) to reverse-engineer how real apps and **open-source repositories** implement it. Don't reinvent — learn the proven approach. Record each as a `research` finding with a stable `id`: `{ id · feature · finding · sources }`. **Sources must be concrete** (a repo, a URL, a named app) — a finding with no concrete source is a guess; drop it or turn it into an experiment.
+
+## Step 2 — De-risk the unknowns with experiments
+
+**Never tell the user "we'll use X" and discover later it doesn't work.** For each risky or uncertain key technology (a framework capability, an API, an integration, and — if the app itself calls a model — that model), run a **small isolated probe** that proves it "lights up", **before** committing the architecture. Use `Bash` for a minimal experiment; synthesize/isolate inputs where you can. Record each with a stable `id`: `{ id · hypothesis · method · result · verdict }`, verdict ∈ `confirmed | refuted | inconclusive`. A **refuted** hypothesis must not drive the spec — pick an alternative and re-probe. This is how you hand the user costs / trade-offs / quality with evidence, not hope.
+
+## Step 3 — Decide every phase (atoms, grounded in steps 1–2)
+
+Produce a **decision atom** for **each** of the seven phases, grounded in the research and experiments above:
 
 ```
-{ phase · options (≥1) · selectionCriteria · chosen (exactly one of options) · rationale · tier · tracesTo }
+{ phase · options(≥1) · selectionCriteria · chosen(exactly one of options) · rationale · tier · tracesTo · evidence }
 ```
 
-`tracesTo` must point at the line/field in the intent contract that justifies the decision — never invent requirements the contract doesn't support. `chosen` must be **exactly** one of `options` (put refinements in `rationale`, not in `chosen`).
+`tracesTo` names the contract field(s) that justify the decision. `chosen` must be exactly one of `options`. `evidence` lists refs to the `research`/`experiments` (by `id`) that ground the choice — and it **must never cite a refuted experiment**. Risk-tier each atom (`auto | needs_confirmation | confirmed`):
+- **low-risk** → auto-resolve and log;
+- **high-risk** (permissions, persisted data, network egress, destructive actions, signing/release) **or** a `mustAskIfDiscovered` trip-wire → `needs_confirmation`, emit a **structured record into `openConfirmations`**, and keep it **out of** `permissionManifest` until confirmed.
 
-Run each atom through risk tiering, using the same vocabulary as the intent contract (`auto | needs_confirmation | confirmed`):
-- **low-risk** (UX layout, commodity stack, internal structure) → **auto-resolve** and log it;
-- **high-risk** (anything touching permissions, persisted data, network egress, destructive actions, signing/release) **or** a `mustAskIfDiscovered` trip-wire fires → mark the atom `needs_confirmation` and **emit a structured record into `openConfirmations`**; do **not** silently pick, and do **not** place the item in `permissionManifest` until confirmed. This is the boundary-hardening rule from the spec.
+The seven phases: **`stack`** (choose per app — Swift/SwiftUI vs Node vs CLI by class, never a default), **`ux`**, **`data`**, **`capabilities`**, **`security`** (least-privilege manifest), **`reliability`** (each `acceptanceTest` → a concrete check), **`build`**.
 
-### The seven phases (every one gets an atom)
+## Step 4 — Decide what to log
 
-1. **`stack`** — choose per app, do not default. A native menu-bar/window app with system integration leans **Swift/SwiftUI**; a tool better as a launcher extension may be **Node/TypeScript**; a pure pipeline may be a Swift CLI. Justify against `appClass`, `customDelta`, capabilities, performance.
-2. **`ux`** — from the contract's form-factor: screen/menu structure, navigation, empty/loading/error states.
-3. **`data`** — from `dataFlows`/`localStorage`: storage mechanism, schema, migration note if state can change shape.
-4. **`capabilities`** — from `externalServices`/`permissions`: only the system capabilities actually required.
-5. **`security`** — derive a **least-privilege** permission manifest. Anything in `permissions`/`unknowns`/`unresolvedRisks` not yet confirmed goes to `openConfirmations`, never into `permissionManifest`.
-6. **`reliability`** — turn each `acceptanceTest` into a concrete check the build must satisfy; specify error handling for the failure modes the analogs imply.
-7. **`build`** — packaging and signing appropriate to the chosen stack.
+The built app must be debuggable after the fact. Produce a `loggingPlan`: for each event that matters, `{ event · why · howLogged }`. **Cover every failure mode you put in `reliability.errorHandling`**, and **how logging actually works with each service/API the app touches** (e.g. `os_log` subsystems, structured fields, what a service emits on error). Logging is mandatory — at least one entry.
 
 ## Output — the architecture spec
 
-`Write` `kiln-arch.json` next to the contract, with this shape:
+`Write` `kiln-arch.json` next to the contract:
 
 ```jsonc
 {
   "tracesTo": "kiln-spec.json",
-  "stack": { "language": "string", "framework": "string", "artifactType": "string", "rationale": "string" },
-  "uxStructure": ["string"],
-  "dataModel": { "storage": "string", "schema": ["string"], "migration": "string|null" },
-  "capabilities": ["string"],
-  "permissionManifest": ["string"],        // least-privilege, confirmed only
-  "reliability": { "errorHandling": ["string"], "testPlan": ["string"] },
-  "build": { "packaging": "string", "signing": "string" },
-  "decisionLog": [
-    { "phase": "stack|ux|data|capabilities|security|reliability|build",
-      "options": ["string"], "selectionCriteria": "string", "chosen": "string",
-      "rationale": "string", "tier": "auto | needs_confirmation | confirmed",
-      "tracesTo": "string" }
-  ],
-  "openConfirmations": [
-    { "decision": "string", "rationale": "string", "tracesTo": "string" }
-  ]
+  "stack": { "language": "...", "framework": "...", "artifactType": "...", "rationale": "..." },
+  "uxStructure": ["..."],
+  "dataModel": { "storage": "...", "schema": ["..."], "migration": "...|null" },
+  "capabilities": ["..."],
+  "permissionManifest": ["..."],            // least-privilege, confirmed only
+  "reliability": { "errorHandling": ["..."], "testPlan": ["..."] },
+  "build": { "packaging": "...", "signing": "..." },
+  "decisionLog": [ { "phase": "...", "options": ["..."], "selectionCriteria": "...", "chosen": "...", "rationale": "...", "tier": "...", "tracesTo": "...", "evidence": [ { "kind": "research|experiment", "ref": "id" } ] } ],
+  "openConfirmations": [ { "decision": "...", "rationale": "...", "tracesTo": "..." } ],
+  "research": [ { "id": "...", "feature": "...", "finding": "...", "sources": ["..."] } ],
+  "experiments": [ { "id": "...", "hypothesis": "...", "method": "...", "result": "...", "verdict": "confirmed|refuted|inconclusive" } ],
+  "loggingPlan": [ { "event": "...", "why": "...", "howLogged": "..." } ]
 }
 ```
 
-Then a short, **human-language** recap: what stack you chose and why, the 2–3 decisions that mattered most, and explicitly the `openConfirmations` the user must clear before build.
+Then a **human-language** recap: the chosen stack and the 2–3 decisions that mattered, the **evidence** (what experiments confirmed/refuted), the **costs / trade-offs / quality** this implies, and explicitly the `openConfirmations` the user must clear.
 
 ## Hand-off
 
-If `openConfirmations` is non-empty, tell the user the build stage is blocked until they're resolved. Otherwise the pipeline can proceed to build. Do not start generating code — that's the next stage.
+Non-empty `openConfirmations` blocks the build stage until resolved. Otherwise the pipeline proceeds to build. Do not generate the app — that's the next stage (`kiln:dev`).

@@ -45,7 +45,8 @@
       "chosen": "Swift/SwiftUI native window app",
       "rationale": "native file APIs and a fast preview table beat a web wrapper here",
       "tier": "auto",
-      "tracesTo": "appClass + baselineRequirements (drag-drop, live preview)"
+      "tracesTo": "appClass + baselineRequirements",
+      "evidence": [{ "kind": "research", "ref": "R1" }]
     },
     {
       "phase": "ux",
@@ -54,7 +55,8 @@
       "chosen": "live-preview table + Apply",
       "rationale": "preview-before-apply is the safety-critical market standard",
       "tier": "auto",
-      "tracesTo": "baselineRequirements (live preview with highlighted changes)"
+      "tracesTo": "baselineRequirements",
+      "evidence": [{ "kind": "research", "ref": "R1" }]
     },
     {
       "phase": "data",
@@ -63,7 +65,8 @@
       "chosen": "in-memory list + UserDefaults presets",
       "rationale": "no need to persist file state, only reusable rules",
       "tier": "auto",
-      "tracesTo": "localStorage (recent rules / presets)"
+      "tracesTo": "localStorage",
+      "evidence": []
     },
     {
       "phase": "capabilities",
@@ -72,7 +75,8 @@
       "chosen": "user-selected security-scoped access",
       "rationale": "only the folders the user picks, via NSOpenPanel + bookmarks",
       "tier": "auto",
-      "tracesTo": "dataFlows (reads user-selected folders)"
+      "tracesTo": "dataFlows",
+      "evidence": [{ "kind": "experiment", "ref": "E1" }]
     },
     {
       "phase": "security",
@@ -81,7 +85,8 @@
       "chosen": "defer the access scope to confirmation",
       "rationale": "the contract marked file scope as needs-confirmation; keep it out of the manifest until confirmed",
       "tier": "needs_confirmation",
-      "tracesTo": "permissions (file-system access — confirm scope)"
+      "tracesTo": "unresolvedRisks",
+      "evidence": [{ "kind": "experiment", "ref": "E1" }]
     },
     {
       "phase": "reliability",
@@ -90,7 +95,8 @@
       "chosen": "explicit Apply gate + undo + conflict detection",
       "rationale": "safety is the market standard for a destructive file operation",
       "tier": "auto",
-      "tracesTo": "acceptanceTests + unresolvedRisks (renaming is destructive)"
+      "tracesTo": "acceptanceTests + unresolvedRisks",
+      "evidence": [{ "kind": "research", "ref": "R1" }]
     },
     {
       "phase": "build",
@@ -99,14 +105,49 @@
       "chosen": ".app sandboxed Developer ID + notarization",
       "rationale": "required for a sandboxed file-access app",
       "tier": "auto",
-      "tracesTo": "appClass (file utility) + permissions (sandboxed file access)"
+      "tracesTo": "appClass + permissions",
+      "evidence": []
     }
   ],
   "openConfirmations": [
     {
       "decision": "user-selected read-write file access scope",
       "rationale": "renaming touches the user's files; confirm it is limited to user-selected folders only",
-      "tracesTo": "permissions (file-system access — confirm scope)"
+      "tracesTo": "unresolvedRisks (file-system access — confirm scope)"
+    }
+  ],
+  "research": [
+    {
+      "id": "R1",
+      "feature": "live preview + full undo for batch renames",
+      "finding": "Batchio computes preview as a pure function of the rules and keeps a 100-operation undo stack; conflicts are detected before apply, never after",
+      "sources": ["batchio.dev", "transnomino.com"]
+    }
+  ],
+  "experiments": [
+    {
+      "id": "E1",
+      "hypothesis": "security-scoped bookmarks let the app re-access user-selected folders across relaunches",
+      "method": "isolated probe: pick a folder via NSOpenPanel, persist a security-scoped bookmark, relaunch, re-resolve and write",
+      "result": "the bookmark re-resolves and grants read-write access after relaunch",
+      "verdict": "confirmed"
+    }
+  ],
+  "loggingPlan": [
+    {
+      "event": "batch apply (file count + active rules)",
+      "why": "diagnose failed or partial rename batches",
+      "howLogged": "os_log, subsystem com.kiln.renamer"
+    },
+    {
+      "event": "conflict detected and apply blocked",
+      "why": "confirm the safety gate actually fired",
+      "howLogged": "os_log at .error level"
+    },
+    {
+      "event": "undo invoked",
+      "why": "trace reversions when a user reports lost names",
+      "howLogged": "os_log"
     }
   ]
 }
