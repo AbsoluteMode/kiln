@@ -23,7 +23,7 @@ Run each stage **exactly as its standalone command defines it** — do not re-de
 1. **Understanding** — follow `kiln:start` on `$ARGUMENTS`. Output: `kiln-spec.json` (intent contract).
 2. **Architecture** — follow `kiln:arch` on `kiln-spec.json`. Output: `kiln-arch.json`. **Gate:** if its `openConfirmations` is non-empty, stop and resolve them with the user before continuing.
 3. **Build** *(stage in development)* — generate the app by orchestrating the user's `claude` / `codex` CLI against `kiln-arch.json`, honoring `codexMode`. Output: the built app.
-4. **Validate** *(stage in development)* — run the trust gates: prove the build satisfies the contract's `acceptanceTests` and the arch `testPlan`, and that runtime permissions match the manifest. Output: a trust verdict.
+4. **Validate** — the trust gates. The **cross-stage seam** is enforced now by `npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json` (each stage traces to the one before, every MUST covered, least privilege, source pinned by digest). The **build-output** checks — running the `acceptanceTests`/`verificationMatrix` against the app and matching runtime permissions to the `effectivePermissionManifest` — land with the build stage. Output: a trust verdict.
 
 ## Gates — never blow through a confirmation
 
