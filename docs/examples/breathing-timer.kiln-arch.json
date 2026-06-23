@@ -1,0 +1,118 @@
+{
+  "tracesTo": "breathing-timer.kiln-spec.json",
+  "stack": {
+    "language": "Swift",
+    "framework": "SwiftUI + AppKit (NSStatusItem)",
+    "artifactType": "native menu-bar macOS app (.app)",
+    "rationale": "Trackpad haptics, a menu-bar presence, and unobtrusive native cues are the market standard for this class and require native APIs — a web/extension wrapper cannot deliver them at quality."
+  },
+  "uxStructure": [
+    "NSStatusItem menu-bar icon; click opens a compact SwiftUI popover",
+    "popover: pattern picker (Box 4-4-4-4 default), a big Start control, and a minimalist breathing animation",
+    "states: idle, running (animated guide), paused",
+    "no main window — menu-bar only, never steals focus from the active app"
+  ],
+  "dataModel": {
+    "storage": "UserDefaults",
+    "schema": ["selectedPattern", "customDurations", "soundEnabled (default false)", "hapticEnabled (default true)"],
+    "migration": null
+  },
+  "capabilities": [
+    "NSStatusItem (menu bar)",
+    "NSHapticFeedbackManager (trackpad haptics)",
+    "AVFoundation (optional audio cue)"
+  ],
+  "permissionManifest": [],
+  "reliability": {
+    "errorHandling": [
+      "if trackpad haptics are unavailable (no Force Touch trackpad), fall back to visual + audio cues",
+      "if audio playback fails, continue silently with visual + haptic cues"
+    ],
+    "testPlan": [
+      "menu-bar click then Start shows a guide animating on a 4-4-4-4 cadence",
+      "toggling sound off removes audio while visual and haptic cues continue",
+      "quitting and relaunching restores the last pattern and preferences"
+    ]
+  },
+  "build": {
+    "packaging": ".app bundle built with Swift/Xcode",
+    "signing": "ad-hoc for local run; Developer ID + notarization for distribution"
+  },
+  "decisionLog": [
+    {
+      "phase": "stack",
+      "options": ["Swift/SwiftUI native menu-bar app", "Node/Raycast extension", "Electron"],
+      "selectionCriteria": "native APIs required for trackpad haptics, menu-bar presence, and unobtrusive feel",
+      "chosen": "Swift/SwiftUI native menu-bar app",
+      "rationale": "only native APIs deliver the market-standard haptic/menu-bar experience",
+      "tier": "auto",
+      "tracesTo": "appClass + baselineRequirements (trackpad haptic cue, menu-bar presence)"
+    },
+    {
+      "phase": "ux",
+      "options": ["menu-bar popover, no main window", "full window", "floating overlay"],
+      "selectionCriteria": "unobtrusive focus tool that never steals focus",
+      "chosen": "menu-bar popover, no main window",
+      "rationale": "market standard for an unobtrusive focus tool",
+      "tier": "auto",
+      "tracesTo": "customDelta (focus during work, runs during calls)"
+    },
+    {
+      "phase": "data",
+      "options": ["UserDefaults", "SQLite", "flat file"],
+      "selectionCriteria": "a few flat preferences, no relational or large data",
+      "chosen": "UserDefaults",
+      "rationale": "smallest mechanism that fits the data shape",
+      "tier": "auto",
+      "tracesTo": "localStorage (selected pattern, durations, prefs)"
+    },
+    {
+      "phase": "capabilities",
+      "options": ["haptics + audio + visual cues", "visual-only"],
+      "selectionCriteria": "market-standard breathing cues",
+      "chosen": "haptics + audio + visual cues",
+      "rationale": "visual+audio+haptic is the baseline users expect for this class",
+      "tier": "auto",
+      "tracesTo": "baselineRequirements (visual + audio + trackpad haptic cues)"
+    },
+    {
+      "phase": "security",
+      "options": ["bundle notifications/Health into the manifest", "defer to confirmation"],
+      "selectionCriteria": "least privilege; high-risk items need explicit consent",
+      "chosen": "defer to confirmation",
+      "rationale": "notifications and Health are high-risk and unconfirmed; keep the base app permission-free",
+      "tier": "needs_confirmation",
+      "tracesTo": "unknowns + unresolvedRisks (reminders, Apple Health)"
+    },
+    {
+      "phase": "reliability",
+      "options": ["assume haptics always available", "graceful degradation"],
+      "selectionCriteria": "robust across Mac hardware without Force Touch",
+      "chosen": "graceful degradation",
+      "rationale": "fall back to visual/audio when haptics are unavailable",
+      "tier": "auto",
+      "tracesTo": "successCriteria (cues stay in sync with the pattern)"
+    },
+    {
+      "phase": "build",
+      "options": [".app ad-hoc local / Developer ID distribution", "Mac App Store"],
+      "selectionCriteria": "local-first utility, optional distribution",
+      "chosen": ".app ad-hoc local / Developer ID distribution",
+      "rationale": "no App Store constraints needed for a local utility",
+      "tier": "auto",
+      "tracesTo": "appClass (local menu-bar utility)"
+    }
+  ],
+  "openConfirmations": [
+    {
+      "decision": "notifications permission for daily reminders",
+      "rationale": "only if the user enables reminders; touches the notifications permission",
+      "tracesTo": "unknowns (does the user want daily reminders?)"
+    },
+    {
+      "decision": "Apple Health write for mindful minutes",
+      "rationale": "health data; include only with explicit user consent",
+      "tracesTo": "unresolvedRisks (Apple Health is health data)"
+    }
+  ]
+}

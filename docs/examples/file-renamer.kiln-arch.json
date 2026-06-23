@@ -1,0 +1,112 @@
+{
+  "tracesTo": "file-renamer.kiln-spec.json",
+  "stack": {
+    "language": "Swift",
+    "framework": "SwiftUI",
+    "artifactType": "native windowed macOS app (.app)",
+    "rationale": "Native drag-and-drop, security-scoped file-system access, and a responsive live-preview table are core to this class; SwiftUI delivers them natively where a web wrapper would fight the sandbox and the file APIs."
+  },
+  "uxStructure": [
+    "single window: a file table (original → new name, changed parts highlighted), a rule editor, and an Apply button",
+    "states: empty (drop files or pick a folder), preview (live-updated), applied (with Undo available)",
+    "live preview recomputes on every keystroke; nothing on disk changes until Apply"
+  ],
+  "dataModel": {
+    "storage": "in-memory file list + rules; UserDefaults for recent rule presets",
+    "schema": ["loadedFiles", "activeRules", "recentPresets"],
+    "migration": null
+  },
+  "capabilities": [
+    "user-selected file-system access via NSOpenPanel + security-scoped bookmarks",
+    "no network"
+  ],
+  "permissionManifest": [],
+  "reliability": {
+    "errorHandling": [
+      "conflict detection blocks Apply when two files would map to the same name",
+      "an undo stack restores all original names after an applied batch",
+      "preview is pure — it never mutates files"
+    ],
+    "testPlan": [
+      "loading 10 files and typing a find/replace shows live-updated names with changes highlighted, and no file is modified yet",
+      "applying a batch then choosing Undo restores every original name",
+      "a rule mapping two files to the same name is flagged and blocked before Apply"
+    ]
+  },
+  "build": {
+    "packaging": ".app bundle built with Swift/Xcode, sandboxed",
+    "signing": "Developer ID + notarization (required for a sandboxed file-access app)"
+  },
+  "decisionLog": [
+    {
+      "phase": "stack",
+      "options": ["Swift/SwiftUI native window app", "Electron", "Node CLI"],
+      "selectionCriteria": "native drag-drop, sandboxed file access, responsive preview table",
+      "chosen": "Swift/SwiftUI native window app",
+      "rationale": "native file APIs and a fast preview table beat a web wrapper here",
+      "tier": "auto",
+      "tracesTo": "appClass + baselineRequirements (drag-drop, live preview)"
+    },
+    {
+      "phase": "ux",
+      "options": ["live-preview table + Apply", "step-by-step wizard", "inline Finder action"],
+      "selectionCriteria": "user must see every change before any file is touched",
+      "chosen": "live-preview table + Apply",
+      "rationale": "preview-before-apply is the safety-critical market standard",
+      "tier": "auto",
+      "tracesTo": "baselineRequirements (live preview with highlighted changes)"
+    },
+    {
+      "phase": "data",
+      "options": ["in-memory list + UserDefaults presets", "SQLite history"],
+      "selectionCriteria": "operates directly on files; only presets need persistence",
+      "chosen": "in-memory list + UserDefaults presets",
+      "rationale": "no need to persist file state, only reusable rules",
+      "tier": "auto",
+      "tracesTo": "localStorage (recent rules / presets)"
+    },
+    {
+      "phase": "capabilities",
+      "options": ["broad file access", "user-selected security-scoped access"],
+      "selectionCriteria": "least privilege for a file-touching tool",
+      "chosen": "user-selected security-scoped access",
+      "rationale": "only the folders the user picks, via NSOpenPanel + bookmarks",
+      "tier": "auto",
+      "tracesTo": "dataFlows (reads user-selected folders)"
+    },
+    {
+      "phase": "security",
+      "options": ["grant the file entitlement in the manifest now", "defer the access scope to confirmation"],
+      "selectionCriteria": "renaming touches user files; scope was flagged for confirmation",
+      "chosen": "defer the access scope to confirmation",
+      "rationale": "the contract marked file scope as needs-confirmation; keep it out of the manifest until confirmed",
+      "tier": "needs_confirmation",
+      "tracesTo": "permissions (file-system access — confirm scope)"
+    },
+    {
+      "phase": "reliability",
+      "options": ["rename on keystroke", "explicit Apply gate + undo + conflict detection"],
+      "selectionCriteria": "renaming is destructive and must be reversible",
+      "chosen": "explicit Apply gate + undo + conflict detection",
+      "rationale": "safety is the market standard for a destructive file operation",
+      "tier": "auto",
+      "tracesTo": "acceptanceTests + unresolvedRisks (renaming is destructive)"
+    },
+    {
+      "phase": "build",
+      "options": [".app sandboxed Developer ID + notarization", "ad-hoc unsigned"],
+      "selectionCriteria": "a sandboxed file-access app must be notarized to run for users",
+      "chosen": ".app sandboxed Developer ID + notarization",
+      "rationale": "required for a sandboxed file-access app",
+      "tier": "auto",
+      "tracesTo": "appClass (file utility) + permissions (sandboxed file access)"
+    }
+  ],
+  "openConfirmations": [
+    {
+      "decision": "user-selected read-write file access scope",
+      "rationale": "renaming touches the user's files; confirm it is limited to user-selected folders only",
+      "tracesTo": "permissions (file-system access — confirm scope)"
+    }
+  ]
+}
