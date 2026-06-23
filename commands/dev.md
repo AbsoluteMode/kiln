@@ -37,20 +37,34 @@ Run the suite; confirm **every test passes** and produce each verification's `re
 
 ## Output — the build report
 
-`Write` `kiln-dev.json` next to the arch spec:
+Pin the inputs: run `npm run kiln -- digest kiln-spec.json` and `npm run kiln -- digest kiln-arch.json`, and put the outputs in `sourceSpec.contentDigest` / `sourceArch.contentDigest`. Then `Write` `kiln-dev.json` next to the arch spec (see `src/core/dev/report.ts` for the authoritative schema):
 
 ```jsonc
 {
-  "tracesTo": "kiln-arch.json",
-  "tests": { "framework": "...", "written": 0, "passing": 0, "files": ["..."] },
-  "loggingImplemented": ["..."],          // the observability subsystems wired
+  "schemaVersion": "1.0",
+  "devRevision": 1,
+  "status": "ready_for_validation",   // or a blocking status; never "ready_for_user" — that is validate's call
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 0, "contentDigest": "sha256:..." },
+  "sourceArch": { "schemaVersion": "1.0", "archRevision": 0, "contentDigest": "sha256:..." },
+  "codexStatus": "off|consulted|unavailable",
+  "implementationUnits": [
+    { "id": "IMP-*", "componentId": "CMP-*", "interfaceIds": ["IF-*"],
+      "tracesTo": ["REQ-*", "JRN-*", "CAP-*"],
+      "files": [{ "path": "...", "symbols": ["..."] }],
+      "verificationIds": ["VER-*"], "status": "implemented" }
+  ],
+  "verificationResults": [{ "verificationId": "VER-*", "result": "pass", "evidenceRefs": ["..."] }],
+  "loggingImplemented": ["..."],     // the observability mechanisms actually wired
+  "defects": [], "intentIssues": [], "architectureIssues": [], "environmentIssues": [],
   "review": { "reviewer": "self|codex", "verdict": "pass|issues", "notes": ["..."] },
-  "artifacts": ["..."],
-  "openRisks": ["..."]
+  "openRisks": ["..."],
+  "changeLog": ["..."]
 }
 ```
 
-Invariant: a completed build has `tests.passing === tests.written` and `tests.written ≥ 1`. If they differ, the stage is **not** done — report what failed, do not claim success. Then run `npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json` — it must exit 0: the build must cover **every** `verificationMatrix` record and implement **every** `reliability.observability` mechanism, or the seam fails.
+Stay in lane: `implementationUnits` reference **real** arch ids (`CMP-*`/`IF-*`/`VER-*`) and intent ids (`REQ-*`/`JRN-*`/`AT-*`/`CAP-*`) — never invent an id, and never an architecture- or intent-significant change (route those to `kiln:arch` / `kiln:start` as `architectureIssues` / `intentIssues`).
+
+Gate: `status` is `"ready_for_validation"` **only** when every implementation unit is `implemented`, every `verificationResults` entry is `pass`, no defect is open, no intent/architecture/environment issue remains, the review verdict is `pass`, and both pins are non-null. Enforce it: `npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json` must exit 0 — every arch `VER-*` has a result, every MUST requirement is implemented by a unit, every observability mechanism is wired, both digests match. Then hand off to **validate**, which owns `ready_for_user`.
 
 Then a short, **human-language** recap: what was built, that all N tests pass with evidence, what's logged, the review verdict, and any open risks.
 

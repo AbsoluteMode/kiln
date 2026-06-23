@@ -31,10 +31,18 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
+function sha256Canonical(value: unknown): string {
+  return 'sha256:' + createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex');
+}
+
 /** SHA-256 pin of the exact intent contract an architecture was built from. */
 export function digestIntent(intent: IntentContract): string {
-  const json = JSON.stringify(canonicalize(intent));
-  return 'sha256:' + createHash('sha256').update(json).digest('hex');
+  return sha256Canonical(intent);
+}
+
+/** SHA-256 pin of the exact architecture a build was produced from. */
+export function digestArch(arch: ArchSpec): string {
+  return sha256Canonical(arch);
 }
 
 /**
@@ -175,25 +183,106 @@ export function validateArchAgainstIntent(arch: ArchSpec, intent: IntentContract
 }
 
 /**
- * A build report is only valid against the architecture it was built from: it must
- * cover every verification record and implement every declared observability mechanism.
+ * A build report is only valid against the architecture it was built from: every
+ * implementation unit must target real arch components/interfaces/verifications,
+ * every declared observability mechanism must be implemented, the arch must be
+ * pinned, and (when ready_for_validation) every arch verification must have a result.
  */
 export function validateDevAgainstArch(dev: DevReport, arch: ArchSpec): SeamViolation[] {
   const violations: SeamViolation[] = [];
 
-  const expectedVerifications = arch.reliability.verificationMatrix.length;
-  if (dev.tests.written < expectedVerifications) {
-    violations.push({
-      code: 'verification_undercovered',
-      message: `dev wrote ${dev.tests.written} tests but the architecture defines ${expectedVerifications} verification records`,
-    });
+  const componentIds = new Set(arch.system.components.map((c) => c.id));
+  const interfaceIds = new Set(arch.system.interfaces.map((i) => i.id));
+  const verificationIds = new Set(arch.reliability.verificationMatrix.map((v) => v.id));
+
+  for (const u of dev.implementationUnits) {
+    if (!componentIds.has(u.componentId)) {
+      violations.push({ code: 'unresolved_component', message: `implementation unit ${u.id} references unknown component "${u.componentId}"` });
+    }
+    for (const i of u.interfaceIds) {
+      if (!interfaceIds.has(i)) {
+        violations.push({ code: 'unresolved_interface', message: `implementation unit ${u.id} references unknown interface "${i}"` });
+      }
+    }
+    for (const v of u.verificationIds) {
+      if (!verificationIds.has(v)) {
+        violations.push({ code: 'unresolved_verification', message: `implementation unit ${u.id} references unknown verification "${v}"` });
+      }
+    }
+  }
+  for (const vr of dev.verificationResults) {
+    if (!verificationIds.has(vr.verificationId)) {
+      violations.push({ code: 'unresolved_verification', message: `verificationResult references unknown verification "${vr.verificationId}"` });
+    }
   }
   for (const observability of arch.reliability.observability) {
     if (!dev.loggingImplemented.includes(observability)) {
-      violations.push({
-        code: 'observability_not_implemented',
-        message: `architecture observability "${observability}" is not implemented`,
-      });
+      violations.push({ code: 'observability_not_implemented', message: `architecture observability "${observability}" is not implemented` });
+    }
+  }
+  if (dev.sourceArch.archRevision !== arch.archRevision) {
+    violations.push({ code: 'arch_revision_mismatch', message: `sourceArch.archRevision ${dev.sourceArch.archRevision} != arch.archRevision ${arch.archRevision}` });
+  }
+
+  if (dev.status === 'ready_for_validation') {
+    const resulted = new Set(dev.verificationResults.map((v) => v.verificationId));
+    for (const v of arch.reliability.verificationMatrix) {
+      if (!resulted.has(v.id)) {
+        violations.push({ code: 'verification_unrun', message: `architecture verification ${v.id} has no dev result` });
+      }
+    }
+    if (dev.sourceArch.contentDigest === null) {
+      violations.push({ code: 'missing_arch_digest', message: 'ready_for_validation requires a non-null sourceArch.contentDigest' });
+    } else if (dev.sourceArch.contentDigest !== digestArch(arch)) {
+      violations.push({ code: 'arch_digest_mismatch', message: 'sourceArch.contentDigest does not match the provided architecture' });
+    }
+  }
+
+  return violations;
+}
+
+/**
+ * A build report must also trace to the intent it ultimately serves: every
+ * implementation unit traces to a real intent id, and (when ready_for_validation)
+ * every MUST requirement is implemented and the intent is pinned.
+ */
+export function validateDevAgainstIntent(dev: DevReport, intent: IntentContract): SeamViolation[] {
+  const violations: SeamViolation[] = [];
+
+  const allRequirements = [...intent.requirements.baseline, ...intent.requirements.customDelta];
+  const reqIds = new Set(allRequirements.map((r) => r.id));
+  const journeyIds = new Set(intent.coreJourneys.map((j) => j.id));
+  const acceptanceTestIds = new Set(intent.acceptanceTests.map((t) => t.id));
+  const capabilityNeedIds = new Set(intent.capabilityNeeds.map((c) => c.id));
+  const resolvesToIntentId = (id: string) =>
+    reqIds.has(id) || journeyIds.has(id) || acceptanceTestIds.has(id) || capabilityNeedIds.has(id);
+  const mustRequirementIds = new Set<string>([
+    ...intent.scope.must,
+    ...allRequirements.filter((r) => r.priority === 'must').map((r) => r.id),
+  ]);
+
+  for (const u of dev.implementationUnits) {
+    for (const ref of u.tracesTo) {
+      if (!resolvesToIntentId(ref)) {
+        violations.push({ code: 'unresolved_traces_to', message: `implementation unit ${u.id} traces to unknown intent id "${ref}"` });
+      }
+    }
+  }
+
+  if (dev.status === 'ready_for_validation') {
+    const tracedRequirementIds = new Set(dev.implementationUnits.flatMap((u) => u.tracesTo));
+    for (const id of mustRequirementIds) {
+      if (!tracedRequirementIds.has(id)) {
+        violations.push({ code: 'must_not_implemented', message: `MUST requirement ${id} is not traced by any implementation unit` });
+      }
+    }
+    if (dev.sourceSpec.specRevision !== intent.specRevision) {
+      violations.push({ code: 'spec_revision_mismatch', message: `sourceSpec.specRevision ${dev.sourceSpec.specRevision} != intent.specRevision ${intent.specRevision}` });
+    }
+    if (dev.sourceSpec.contentDigest === null) {
+      violations.push({ code: 'missing_spec_digest', message: 'ready_for_validation requires a non-null sourceSpec.contentDigest' });
+    } else if (dev.sourceSpec.contentDigest !== digestIntent(intent)) {
+      violations.push({ code: 'spec_digest_mismatch', message: 'sourceSpec.contentDigest does not match the provided intent contract' });
     }
   }
 

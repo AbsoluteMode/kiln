@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { IntentContract, parseIntentContract } from '../core/intent/contract';
 import { ArchSpec, parseArchSpec } from '../core/arch/spec';
 import { DevReport, parseDevReport } from '../core/dev/report';
-import { validateArchAgainstIntent, validateDevAgainstArch } from '../core/seam/validate';
+import {
+  validateArchAgainstIntent,
+  validateDevAgainstArch,
+  validateDevAgainstIntent,
+} from '../core/seam/validate';
 
 /**
  * The executable seam gate. `kiln check` loads the stage artifacts, parses each
@@ -63,6 +67,11 @@ export function checkArtifacts(specPath: string, archPath: string, devPath?: str
   if (dev && arch) {
     for (const v of validateDevAgainstArch(dev, arch)) {
       problems.push({ stage: 'dev<->arch', code: v.code, message: v.message });
+    }
+  }
+  if (dev && intent) {
+    for (const v of validateDevAgainstIntent(dev, intent)) {
+      problems.push({ stage: 'dev<->intent', code: v.code, message: v.message });
     }
   }
 
