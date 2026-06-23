@@ -23,29 +23,62 @@ The human chose only intent and observable behavior. **Stack, data model, entitl
 
 ## Step 1 — Research how others built it (use Explore)
 
-For each non-trivial feature, **dispatch a built-in `Explore` subagent** (Agent tool) to reverse-engineer how real apps and **open-source repos** implement it. Record each `research` finding `{ id · feature · finding · sources }`. **Sources must be concrete** — a sourceless finding is a guess.
+For each non-trivial feature, **dispatch a built-in `Explore` subagent** (Agent tool) to reverse-engineer how real apps and **open-source repos** implement it. Record each finding as an `evidence` entry (`type` ∈ `apple_primary_doc | dependency_doc | agent_inference`) with a concrete `source` and the ids it `supports`. **A sourceless finding is a guess** — never let it drive a decision.
 
 ## Step 2 — De-risk the unknowns with experiments
 
-**Never promise "we'll use X" then discover it doesn't work.** For each risky/uncertain key technology, run a **small isolated probe** (`Bash`) that proves it lights up, **before** committing. Record `{ id · hypothesis · method · result · verdict }`, verdict ∈ `confirmed | refuted | inconclusive`. A **refuted** hypothesis must not drive the spec — pick an alternative and re-probe.
+**Never promise "we'll use X" then discover it doesn't work.** For each risky/uncertain key technology, run a **small isolated probe** (`Bash`) that proves it lights up **before** committing. A confirmed probe becomes an `evidence` entry (`type: experiment`, `source` = the probe). A **refuted** hypothesis is discarded and **never cited** — pick an alternative and re-probe.
 
-## Step 3 — Decide every phase (atoms, grounded in steps 1–2)
+## Step 3 — Model the system
 
-A **decision atom** per phase: `{ phase · options(≥1) · selectionCriteria · chosen(exactly one of options) · rationale · tier · tracesTo · evidence }`. `tracesTo` names the contract field that justifies it; `evidence` refs `research`/`experiments` by id and **never cites a refuted experiment**. Risk-tier (`auto | needs_confirmation | confirmed`):
-- **low-risk** → auto-resolve and log;
-- **high-risk** (permissions, persisted data, network egress, destructive, signing/release) **or** a `handoff.stopConditions` trip-wire → `needs_confirmation`, emit a structured record into `openConfirmations`, keep it **out of** `permissionManifest`.
+Choose the `platform` **per app** from `classification`/`deliveryContext` — never a default: artifact types, language, runtime, UI frameworks, minimum macOS, process topology, build system. Define the **component topology**: `system.components` (`id · responsibility · owns`), `system.interfaces` (`from → to · contract`), and `dependencyRules` (no reverse dependencies). Model `ux` from `coreJourneys` + `classification.interactionSurfaces` + `macBaseline`, and `data` from `dataHandlingIntent` (entities, invariants, persistence, lifecycle, concurrency, recovery).
 
-Seven phases: **`stack`** (per app, from `classification`/`deliveryContext`, never a default), **`ux`** (from `coreJourneys` + `classification.interactionSurfaces` + `macBaseline`), **`data`** (from `dataHandlingIntent`), **`capabilities`** (from `capabilityNeeds`), **`security`** (least-privilege manifest — a `capabilityNeed` enters it only when `confirmed`/`confirmed_by_request`; otherwise → `openConfirmations`), **`reliability`** (turn each `acceptanceTest` into a concrete check honoring its `requiredEvidence`), **`build`** (from `deliveryContext.distributionConstraint`).
+## Step 4 — Decide what the user delegated (decision atoms)
 
-## Step 4 — Decide what to log
+One **decision atom** per architecture-significant choice, grounded in steps 1–3:
 
-Produce a `loggingPlan` `{ event · why · howLogged }`. **Cover every failure mode in `reliability.errorHandling`** and **how logging works with each service/API touched** (e.g. `os_log` subsystems). Mandatory — ≥1 entry.
+`{ id · phase · question · status · authority · engineeringRisk · reversibility · hardConstraints · options(≥1) · selectionCriteria · chosenOptionId · recommendedOptionId · rationale · rejectedOptions · tracesTo · evidenceRefs · confidence · consequences · fallback · verificationPlan }`
+
+- `phase` ∈ `platformTopology | ux | data | integrationsCapabilities | securityPrivacy | reliabilityVerification | buildRelease`.
+- `tracesTo` lists the **intent contract ids** that justify it (`REQ-*`, `JRN-*`, `CAP-*`, `AT-*`) — stable ids, never field-path strings. `evidenceRefs` point at `evidence[]` by id and **never cite a refuted probe**.
+- Record `authority` (`inherited | delegated | outside_delegation`), `engineeringRisk`, and `reversibility` **separately** — engineering risk is not confirmation status.
+- **`status` drives the gate:**
+  - within delegation, low-risk → `decided`, with `chosenOptionId` ∈ `options`.
+  - high-risk (**permissions, persisted data, network egress, destructive ops, signing/release**) **or** a `handoff.stopConditions` trip-wire → `pending_confirmation`: leave `chosenOptionId` null, set `recommendedOptionId`, emit a structured `openConfirmations` record, and keep the capability **out of** `security.effectivePermissionManifest`.
+
+## Step 5 — Security, reliability, logging
+
+- **Security:** a `threatModel` (`assets · trustBoundaries · abuseCases · mitigations · residualRisks`) and a least-privilege `effectivePermissionManifest`. A `capabilityNeed` enters the manifest **only** when `confirmed`/`confirmed_by_request`; anything unconfirmed stays in `openConfirmations`. Set `loggingPolicy` and `secretPolicy`.
+- **Reliability & verification:** turn **each** `acceptanceTest` into a `verificationMatrix` record (`acceptanceTestId · level · harness · execution · oracle · requiredEvidence`), honoring its `requiredEvidence`; define `failureModel` + `recovery`.
+- **Logging:** `reliability.observability` names the concrete mechanisms (e.g. `os_log` subsystems) that reconstruct what went wrong — **cover every `failureModel` path**.
+
+## Step 6 — Prove coverage and pin the source
+
+For **every** MUST requirement, a `coverageMatrix` row linking it to journeys, decisions, components, capabilities, and verifications, with `coverage: "complete"`. Pin the consumed contract in `sourceSpec` (`schemaVersion`, `specRevision`, and a **non-null `contentDigest`** — the SHA-256 of the intent you read). Declare `environmentPrerequisites` (build/test/release; `blocking` true/false) — machine prerequisites, **distinct** from `openConfirmations` (unresolved user intent).
 
 ## Output — the architecture spec
 
-`Write` `kiln-arch.json`: `tracesTo`, `stack{language,framework,artifactType,rationale}`, `uxStructure[]`, `dataModel{storage,schema[],migration}`, `capabilities[]`, `permissionManifest[]` (confirmed only), `reliability{errorHandling[],testPlan[]}`, `build{packaging,signing}`, `decisionLog[atoms]`, `openConfirmations[{decision,rationale,tracesTo}]`, `research[{id,feature,finding,sources[]}]`, `experiments[{id,hypothesis,method,result,verdict}]`, `loggingPlan[{event,why,howLogged}]`.
+`Write` `kiln-arch.json` (see `src/core/arch/spec.ts` for the authoritative schema):
 
-Then a **human recap**: the chosen stack and 2–3 key decisions, the **evidence** (experiments confirmed/refuted), the **costs / trade-offs / quality**, and the `openConfirmations` to clear.
+```
+schemaVersion, archRevision, status, sourceSpec{schemaVersion,specRevision,contentDigest},
+codexStatus, architectureSummary,
+platform{...}, system{components[],interfaces[],processes[],dependencyRules[]}, ux{...}, data{...},
+capabilities[{id,capabilityNeedId,mechanism,owningComponent,availability,fallback,failureBehavior}],
+integrations{networkPlan,externalServices[]},
+security{threatModel,effectivePermissionManifest,loggingPolicy,secretPolicy},
+reliability{failureModel[],recovery[],observability[],qualityBudgets[],verificationMatrix[]},
+build{...}, dependencies[], evidence[{id,type,title,source,supports[]}],
+decisionLog[atoms], coverageMatrix[rows], assumptions[], risks[],
+openConfirmations[{id,triggeredByDecisionId,questionForStart,whyIntentCannotBeInferred,recommendedDefault,alternatives[],consequences[],tracesTo[]}],
+environmentPrerequisites[{id,prerequisite,affects,detectionMethod,fallback,blocking}],
+handoff{buildMustImplement,buildMustPreserve,buildMustNotDo,buildMayDecide,stopConditions,expectedArtifacts,requiredVerificationEvidence},
+changeLog
+```
+
+`status` is `"ready_for_build"` **only** when `openConfirmations` is empty, no decision is `pending_confirmation`, every coverage row is `complete`, and — checked against the consumed contract via `validateArchAgainstIntent` — every `tracesTo`/`capabilityNeedId` resolves to a real intent id, every MUST requirement has a complete coverage row, no `capability` exceeds a `confirmed` capability need, and `sourceSpec` pins the intent by digest.
+
+Then a **human recap**: the chosen stack and 2–3 key decisions, the **evidence** (probes confirmed/refuted), the **costs / trade-offs / quality**, and any `openConfirmations` to clear.
 
 ## Hand-off
 

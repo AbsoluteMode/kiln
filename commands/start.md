@@ -82,7 +82,7 @@ handoff{ buildMayDecide[], buildMustPreserve[], stopConditions[], verificationEv
 changeLog[]
 ```
 
-Invariant: no `capabilityNeed`, sensitive scope, or external service exists without a linked data flow and a stated user benefit. Anything uncertain about permissions/data lives in `unknowns`/`unresolvedRisks`, never as an accepted capability.
+Invariant: no `capabilityNeed`, sensitive scope, or external service exists without a corresponding `dataHandlingIntent` data flow and a stated user benefit. Anything uncertain about permissions/data lives in `unknowns`/`unresolvedRisks`, never as an accepted capability.
 
 ## Human recap (no jargon)
 

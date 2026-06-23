@@ -13,7 +13,7 @@ If empty, read `./kiln-arch.json`. Also `Read` the `sourceSpec` intent contract 
 
 ## Input gate
 
-Build only when: `kiln-arch.json` `status` is `"ready_for_build"`; `openConfirmations` is empty; the contract's `acceptanceTests` and the arch `reliability.verificationMatrix` are present. Check `environmentPrerequisites`: a `blocking: true` prerequisite that's missing (e.g. no Xcode) **stops the build** with a clear message; a non-blocking one (e.g. no Developer ID) only limits release, not implementation. If the gate fails, stop and report — do not build a partial app.
+Build only when: `kiln-arch.json` `status` is `"ready_for_build"`; `openConfirmations` is empty; the contract's `acceptanceTests` and the arch `reliability.verificationMatrix` are present; and the arch passes the cross-stage seam against its `sourceSpec` intent (`validateArchAgainstIntent` — stale ids, an uncovered MUST, or a capability beyond what the user confirmed mean the arch is not really build-ready). Check `environmentPrerequisites`: a `blocking: true` prerequisite that's missing (e.g. no Xcode) **stops the build** with a clear message; a non-blocking one (e.g. no Developer ID) only limits release, not implementation. If the gate fails, stop and report — do not build a partial app.
 
 ## Pipeline context
 
@@ -50,7 +50,7 @@ Run the suite; confirm **every test passes** and produce each verification's `re
 }
 ```
 
-Invariant: a completed build has `tests.passing === tests.written` and `tests.written ≥ 1`. If they differ, the stage is **not** done — report what failed, do not claim success.
+Invariant: a completed build has `tests.passing === tests.written` and `tests.written ≥ 1`. If they differ, the stage is **not** done — report what failed, do not claim success. Then run the cross-stage seam (`validateDevAgainstArch`): the build must cover **every** `verificationMatrix` record and implement **every** `reliability.observability` mechanism — a violation means the build doesn't match the architecture.
 
 Then a short, **human-language** recap: what was built, that all N tests pass with evidence, what's logged, the review verdict, and any open risks.
 

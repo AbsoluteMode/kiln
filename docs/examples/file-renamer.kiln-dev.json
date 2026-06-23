@@ -14,8 +14,8 @@
     "verdict": "pass",
     "notes": [
       "all 3 acceptance tests pass (live preview, undo, conflict block)",
-      "loggingPlan wired via os_log subsystem com.kiln.renamer",
-      "file access deferred — not in permissionManifest until the user confirms scope"
+      "observability wired via os_log subsystem com.kiln.renamer",
+      "file access implemented per confirmed CAP-001 (user-selected read-write + security-scoped bookmarks)"
     ]
   },
   "artifacts": [
@@ -24,6 +24,6 @@
     "Sources/FileRenamer/RenameEngine.swift"
   ],
   "openRisks": [
-    "file-system access scope unconfirmed (arch openConfirmations)"
+    "a previewed-but-unintended rename is recoverable only via in-session undo"
   ]
 }

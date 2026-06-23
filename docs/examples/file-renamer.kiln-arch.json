@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "archRevision": 1,
   "status": "ready_for_build",
-  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": null },
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:63e815d1c2f332de63764f57254c3bb98b8a808c07def80bb6a4a350407b8bb3" },
   "codexStatus": "off",
   "architectureSummary": "A single-process native Swift windowed app that loads user-selected files, computes a pure live preview of renames, blocks conflicts before apply, renames in place under security-scoped access, and supports full undo — all offline.",
   "platform": {
