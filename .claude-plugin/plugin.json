@@ -1,0 +1,13 @@
+{
+  "name": "kiln",
+  "version": "0.1.0",
+  "description": "Writes high-quality macOS services under the hood. Understands what you want, fires it into a verifiable build spec, then builds with trust. Cooperates with Codex when available.",
+  "author": {
+    "name": "Maxim",
+    "email": "niceizzy1337@gmail.com"
+  },
+  "homepage": "https://github.com/AbsoluteMode/kiln",
+  "repository": "https://github.com/AbsoluteMode/kiln",
+  "license": "MIT",
+  "keywords": ["macos", "vibe-coding", "trust", "claude-code", "codex"]
+}
