@@ -31,4 +31,28 @@ describe('kiln check (executable seam gate core)', () => {
     expect(r.ok).toBe(false);
     expect(r.problems.some((p) => p.code === 'parse_error')).toBe(true);
   });
+
+  it('passes the full release chain (spec→arch→dev→manifest→release)', () => {
+    const r = checkArtifacts(
+      ex('file-renamer.kiln-spec.json'),
+      ex('file-renamer.kiln-arch.json'),
+      ex('file-renamer.kiln-dev.json'),
+      ex('file-renamer.kiln-artifact-manifest.json'),
+      ex('file-renamer.kiln-release.json'),
+    );
+    expect(r.problems).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+
+  it('fails a release checked without its manifest', () => {
+    const r = checkArtifacts(
+      ex('file-renamer.kiln-spec.json'),
+      ex('file-renamer.kiln-arch.json'),
+      ex('file-renamer.kiln-dev.json'),
+      undefined,
+      ex('file-renamer.kiln-release.json'),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.problems.some((p) => p.code === 'missing_inputs')).toBe(true);
+  });
 });

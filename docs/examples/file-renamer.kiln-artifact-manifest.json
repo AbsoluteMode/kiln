@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0",
+  "manifestRevision": 1,
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:63e815d1c2f332de63764f57254c3bb98b8a808c07def80bb6a4a350407b8bb3" },
+  "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:f892103062882cbed87292da6a71e18853a556cdbaf2f227d8c3ff5281d5ff13" },
+  "sourceDev": { "schemaVersion": "1.0", "devRevision": 1, "contentDigest": "sha256:c9bacfbcf617d5ebaddbe0dbba6a986b98c4c1bbef6015a32a64e983c167bad1" },
+  "artifacts": [
+    {
+      "id": "ART-1",
+      "type": "app",
+      "path": "build/FileRenamer.app",
+      "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 0,
+      "bundleIdentifier": "com.kiln.renamer",
+      "applicationVersion": "0.1.0",
+      "buildNumber": "1",
+      "binaryUUIDs": [],
+      "dSYMRefs": [],
+      "signingStatus": "adhoc",
+      "notarizationStatus": "none"
+    }
+  ],
+  "evidenceIndex": ["synthetic candidate identity; the real signed .app digest lands in Slice 2"],
+  "changeLog": ["rev1: synthetic candidate manifest for the release contract"]
+}
