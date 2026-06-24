@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0",
+  "manifestRevision": 1,
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:563d2fb10a468e5ab94a0fe8e24a39222dd2e5c4fbc74940e0ef51408fe6bb2b" },
+  "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:b1d4e5520ca63e8ee8f6fc192bf36a63b343d0255d6ceeb7b83431af36cf4b06" },
+  "sourceDev": { "schemaVersion": "1.0", "devRevision": 1, "contentDigest": "sha256:04c93d51826fdb8d307107d6639a1188f245368cbaef69546c86f9a176a66606" },
+  "artifacts": [
+    {
+      "id": "ART-1",
+      "type": "app",
+      "path": "build/Calculator.app",
+      "sha256": "sha256:21b72bc368f24a35c96879baae6bb98d86a39715cc7540921c9e9b127835899b",
+      "size": 154368,
+      "bundleIdentifier": "com.kiln.calculator",
+      "applicationVersion": "0.1.0",
+      "buildNumber": "1",
+      "binaryUUIDs": [],
+      "dSYMRefs": [],
+      "signingStatus": "adhoc",
+      "notarizationStatus": "none"
+    }
+  ],
+  "evidenceIndex": ["sha256/size are the real built Calculator.app Mach-O binary (ad-hoc, local); Developer ID + notarization land in Slice 2"],
+  "changeLog": ["rev1: candidate manifest for the real Calculator build"]
+}

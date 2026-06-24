@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "devRevision": 1,
+  "status": "ready_for_release",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:563d2fb10a468e5ab94a0fe8e24a39222dd2e5c4fbc74940e0ef51408fe6bb2b" },
+  "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:b1d4e5520ca63e8ee8f6fc192bf36a63b343d0255d6ceeb7b83431af36cf4b06" },
+  "codexStatus": "off",
+  "implementationUnits": [
+    {
+      "id": "IMP-ENGINE",
+      "componentId": "CMP-ENGINE",
+      "interfaceIds": ["IF-1"],
+      "tracesTo": ["REQ-001", "REQ-002", "REQ-003"],
+      "files": [{ "path": "Sources/CalcKit/CalculatorModel.swift", "symbols": ["CalculatorModel", "CalcOp"] }],
+      "verificationIds": ["VER-001", "VER-002", "VER-003"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-UI",
+      "componentId": "CMP-UI",
+      "interfaceIds": ["IF-1"],
+      "tracesTo": ["JRN-001", "REQ-005"],
+      "files": [
+        { "path": "Sources/Calculator/CalculatorApp.swift", "symbols": ["CalculatorApp"] },
+        { "path": "Sources/Calculator/ContentView.swift", "symbols": ["ContentView", "CalculatorViewModel"] }
+      ],
+      "verificationIds": [],
+      "status": "implemented"
+    }
+  ],
+  "verificationResults": [
+    { "verificationId": "VER-001", "result": "pass", "evidenceRefs": ["build/test.log"] },
+    { "verificationId": "VER-002", "result": "pass", "evidenceRefs": ["build/test.log"] },
+    { "verificationId": "VER-003", "result": "pass", "evidenceRefs": ["build/test.log"] }
+  ],
+  "loggingImplemented": ["os_log subsystem com.kiln.calculator"],
+  "defects": [],
+  "intentIssues": [],
+  "architectureIssues": [],
+  "environmentIssues": [],
+  "review": {
+    "reviewer": "self",
+    "verdict": "pass",
+    "notes": [
+      "3 MUST acceptance tests pass via real swift test (four operations, clear, divide-by-zero safety) — build/test.log",
+      "Calculator.app builds (swift build -c release) and passes launch-smoke",
+      "engine is a pure CalcKit state machine (headless-testable); SwiftUI shell + keyboard wired over it",
+      "observability wired via os_log subsystem com.kiln.calculator"
+    ]
+  },
+  "openRisks": ["floating-point rounding on non-integer results (standard for a basic calculator)"],
+  "changeLog": ["rev1: first build of the calculator from the arch contract"]
+}
