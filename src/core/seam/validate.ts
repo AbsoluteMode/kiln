@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { IntentContract } from '../intent/contract';
 import { ArchSpec } from '../arch/spec';
 import { DevReport } from '../dev/report';
+import { ArtifactManifest } from '../artifact/manifest';
+import { ReleaseReport } from '../release/report';
 
 /**
  * Cross-stage seam validation.
@@ -43,6 +45,16 @@ export function digestIntent(intent: IntentContract): string {
 /** SHA-256 pin of the exact architecture a build was produced from. */
 export function digestArch(arch: ArchSpec): string {
   return sha256Canonical(arch);
+}
+
+/** SHA-256 pin of the exact dev report a release candidate came from. */
+export function digestDev(dev: DevReport): string {
+  return sha256Canonical(dev);
+}
+
+/** SHA-256 pin of the artifact manifest a release selects candidates from. */
+export function digestManifest(manifest: ArtifactManifest): string {
+  return sha256Canonical(manifest);
 }
 
 /**
@@ -286,5 +298,71 @@ export function validateDevAgainstIntent(dev: DevReport, intent: IntentContract)
     }
   }
 
+  return violations;
+}
+
+/**
+ * An artifact manifest is only valid against the exact dev report it was produced
+ * from: it pins that dev (revision + digest) and shares its upstream spec/arch.
+ */
+export function validateManifestAgainstDev(manifest: ArtifactManifest, dev: DevReport): SeamViolation[] {
+  const violations: SeamViolation[] = [];
+  if (manifest.sourceDev.devRevision !== dev.devRevision) {
+    violations.push({ code: 'dev_revision_mismatch', message: `manifest sourceDev.devRevision ${manifest.sourceDev.devRevision} != dev.devRevision ${dev.devRevision}` });
+  }
+  if (manifest.sourceDev.contentDigest === null) {
+    violations.push({ code: 'missing_dev_digest', message: 'manifest sourceDev.contentDigest must pin the dev report' });
+  } else if (manifest.sourceDev.contentDigest !== digestDev(dev)) {
+    violations.push({ code: 'dev_digest_mismatch', message: 'manifest sourceDev.contentDigest does not match the provided dev report' });
+  }
+  if (manifest.sourceSpec.contentDigest !== dev.sourceSpec.contentDigest || manifest.sourceSpec.specRevision !== dev.sourceSpec.specRevision) {
+    violations.push({ code: 'upstream_spec_mismatch', message: 'manifest sourceSpec disagrees with the dev report' });
+  }
+  if (manifest.sourceArch.contentDigest !== dev.sourceArch.contentDigest || manifest.sourceArch.archRevision !== dev.sourceArch.archRevision) {
+    violations.push({ code: 'upstream_arch_mismatch', message: 'manifest sourceArch disagrees with the dev report' });
+  }
+  return violations;
+}
+
+/**
+ * A release is only valid against the exact verified candidate: dev must be
+ * ready_for_release, the release must pin that dev + the manifest, and every
+ * selected candidate must match a manifest artifact exactly (the candidate pin).
+ */
+export function validateReleaseAgainstDev(release: ReleaseReport, dev: DevReport, manifest: ArtifactManifest): SeamViolation[] {
+  const violations: SeamViolation[] = [];
+
+  if (dev.status !== 'ready_for_release') {
+    violations.push({ code: 'dev_not_ready', message: `release requires dev.status ready_for_release, got ${dev.status}` });
+  }
+  if (release.sourceDev.devRevision !== dev.devRevision) {
+    violations.push({ code: 'dev_revision_mismatch', message: `release sourceDev.devRevision ${release.sourceDev.devRevision} != dev.devRevision ${dev.devRevision}` });
+  }
+  if (release.sourceDev.contentDigest === null) {
+    violations.push({ code: 'missing_dev_digest', message: 'release sourceDev.contentDigest must pin the dev report' });
+  } else if (release.sourceDev.contentDigest !== digestDev(dev)) {
+    violations.push({ code: 'dev_digest_mismatch', message: 'release sourceDev.contentDigest does not match the provided dev report' });
+  }
+  if (release.sourceDev.artifactManifestDigest === null) {
+    violations.push({ code: 'missing_manifest_digest', message: 'release sourceDev.artifactManifestDigest must pin the artifact manifest' });
+  } else if (release.sourceDev.artifactManifestDigest !== digestManifest(manifest)) {
+    violations.push({ code: 'manifest_digest_mismatch', message: 'release sourceDev.artifactManifestDigest does not match the provided manifest' });
+  }
+
+  const byId = new Map(manifest.artifacts.map((a) => [a.id, a]));
+  const authorized = new Set(release.releaseContext.authorizedArtifactIds);
+  for (const c of release.selectedCandidates) {
+    if (!authorized.has(c.artifactId)) {
+      violations.push({ code: 'unauthorized_artifact', message: `selected candidate ${c.artifactId} is not in authorizedArtifactIds` });
+    }
+    const a = byId.get(c.artifactId);
+    if (!a) {
+      violations.push({ code: 'unresolved_candidate', message: `selected candidate ${c.artifactId} is not in the manifest` });
+      continue;
+    }
+    if (a.sha256 !== c.sha256 || a.size !== c.size || a.bundleIdentifier !== c.bundleIdentifier || a.applicationVersion !== c.applicationVersion || a.buildNumber !== c.buildNumber) {
+      violations.push({ code: 'candidate_mismatch', message: `selected candidate ${c.artifactId} does not match the manifest artifact (not the verified build)` });
+    }
+  }
   return violations;
 }

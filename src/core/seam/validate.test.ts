@@ -8,8 +8,14 @@ import {
   validateArchAgainstIntent,
   validateDevAgainstArch,
   validateDevAgainstIntent,
+  validateManifestAgainstDev,
+  validateReleaseAgainstDev,
   digestIntent,
+  digestDev,
+  digestManifest,
 } from './validate';
+import { parseArtifactManifest } from '../artifact/manifest';
+import { parseReleaseReport } from '../release/report';
 
 const NAMES = ['breathing-timer', 'file-renamer'] as const;
 
@@ -131,5 +137,68 @@ describe('cross-stage seam: dev ↔ intent', () => {
     for (const u of dev.implementationUnits) u.tracesTo = u.tracesTo.filter((r) => r !== 'REQ-001');
     const v = validateDevAgainstIntent(dev, intentOf('breathing-timer'));
     expect(v.some((x) => x.code === 'must_not_implemented')).toBe(true);
+  });
+});
+
+describe('cross-stage seam: release ↔ dev ↔ manifest', () => {
+  function manifestFor(name: 'file-renamer') {
+    const dev = devOf(name);
+    return parseArtifactManifest({
+      schemaVersion: '1.0',
+      manifestRevision: 1,
+      sourceSpec: { schemaVersion: '1.0', specRevision: dev.sourceSpec.specRevision, contentDigest: dev.sourceSpec.contentDigest },
+      sourceArch: { schemaVersion: '1.0', archRevision: dev.sourceArch.archRevision, contentDigest: dev.sourceArch.contentDigest },
+      sourceDev: { schemaVersion: '1.0', devRevision: dev.devRevision, contentDigest: digestDev(dev) },
+      artifacts: [{ id: 'ART-1', type: 'app', path: 'build/FileRenamer.app', sha256: 'sha256:aaaa', size: 1024, bundleIdentifier: 'com.kiln.renamer', applicationVersion: '0.1.0', buildNumber: '1', binaryUUIDs: [], dSYMRefs: [], signingStatus: 'adhoc', notarizationStatus: 'none' }],
+      evidenceIndex: [],
+      changeLog: [],
+    });
+  }
+  function releaseFor(name: 'file-renamer') {
+    const dev = devOf(name);
+    const manifest = manifestFor(name);
+    return parseReleaseReport({
+      schemaVersion: '1.0',
+      releaseRevision: 1,
+      releaseId: 'REL-1',
+      status: 'audit_passed',
+      sourceSpec: { schemaVersion: '1.0', specRevision: dev.sourceSpec.specRevision, contentDigest: dev.sourceSpec.contentDigest },
+      sourceArch: { schemaVersion: '1.0', archRevision: dev.sourceArch.archRevision, contentDigest: dev.sourceArch.contentDigest },
+      sourceDev: { schemaVersion: '1.0', devRevision: dev.devRevision, contentDigest: digestDev(dev), artifactManifestDigest: digestManifest(manifest) },
+      releaseContext: { releaseMode: 'audit_only', maximumExternalAction: 'none', authorizedChannelIds: ['CH-1'], authorizedArtifactIds: ['ART-1'], version: '0.1.0', buildNumber: '1' },
+      releaseIdentity: { applicationName: 'FileRenamer', bundleIdentifier: 'com.kiln.renamer', version: '0.1.0', buildNumber: '1' },
+      selectedCandidates: [{ artifactId: 'ART-1', sha256: 'sha256:aaaa', size: 1024, bundleIdentifier: 'com.kiln.renamer', applicationVersion: '0.1.0', buildNumber: '1' }],
+      channels: [{ id: 'CH-1', type: 'direct_download', required: true, state: 'pending', candidateArtifactId: 'ART-1' }],
+      openReleaseAuthorizations: [], intentIssues: [], architectureIssues: [], devIssues: [], ownerDeclarationIssues: [], environmentIssues: [], channelIssues: [],
+      evidenceIndex: [],
+      changeLog: [],
+    });
+  }
+
+  it('manifest pins the dev it was built from', () => {
+    expect(validateManifestAgainstDev(manifestFor('file-renamer'), devOf('file-renamer'))).toEqual([]);
+  });
+  it('release pins dev + manifest, candidate matches', () => {
+    expect(validateReleaseAgainstDev(releaseFor('file-renamer'), devOf('file-renamer'), manifestFor('file-renamer'))).toEqual([]);
+  });
+  it('flags a manifest whose dev digest does not match', () => {
+    const m = manifestFor('file-renamer');
+    m.sourceDev.contentDigest = 'sha256:deadbeef';
+    expect(validateManifestAgainstDev(m, devOf('file-renamer')).some((v) => v.code === 'dev_digest_mismatch')).toBe(true);
+  });
+  it('flags a selected candidate whose sha256 disagrees with the manifest', () => {
+    const r = releaseFor('file-renamer');
+    r.selectedCandidates[0].sha256 = 'sha256:tampered';
+    expect(validateReleaseAgainstDev(r, devOf('file-renamer'), manifestFor('file-renamer')).some((v) => v.code === 'candidate_mismatch')).toBe(true);
+  });
+  it('flags release when dev is not ready_for_release', () => {
+    const dev = devOf('file-renamer');
+    (dev as any).status = 'implementation_failed';
+    expect(validateReleaseAgainstDev(releaseFor('file-renamer'), dev, manifestFor('file-renamer')).some((v) => v.code === 'dev_not_ready')).toBe(true);
+  });
+  it('flags a candidate outside the authorized artifact ids', () => {
+    const r = releaseFor('file-renamer');
+    r.releaseContext.authorizedArtifactIds = [];
+    expect(validateReleaseAgainstDev(r, devOf('file-renamer'), manifestFor('file-renamer')).some((v) => v.code === 'unauthorized_artifact')).toBe(true);
   });
 });
