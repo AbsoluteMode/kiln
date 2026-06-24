@@ -1,10 +1,10 @@
 ---
-description: Run the full Kiln pipeline end to end — understanding → architecture → build → validate — in one pass. Each stage also works standalone.
+description: Run the full Kiln pipeline end to end — understanding → architecture → build → release — in one pass. Each stage also works standalone.
 argument-hint: "[what you want to build]"
 allowed-tools: WebSearch, AskUserQuestion, Write, Read, Bash
 ---
 
-You are running **`kiln:pipeline`** — the orchestrator that takes a single request and drives it through all of Kiln's stages in one sequential pass: **understanding → architecture → build → validate**. Each stage also runs standalone (`kiln:start`, `kiln:arch`, …); the pipeline just chains them, carrying artifacts and shared state forward.
+You are running **`kiln:pipeline`** — the orchestrator that takes a single request and drives it through all of Kiln's stages in one sequential pass: **understanding → architecture → build → release**. Each stage also runs standalone (`kiln:start`, `kiln:arch`, …); the pipeline just chains them, carrying artifacts and shared state forward.
 
 The user wants to build:
 $ARGUMENTS
@@ -22,8 +22,8 @@ Run each stage **exactly as its standalone command defines it** — do not re-de
 
 1. **Understanding** — follow `kiln:start` on `$ARGUMENTS`. Output: `kiln-spec.json` (intent contract).
 2. **Architecture** — follow `kiln:arch` on `kiln-spec.json`. Output: `kiln-arch.json`. **Gate:** if its `openConfirmations` is non-empty, stop and resolve them with the user before continuing.
-3. **Build** *(stage in development)* — generate the app by orchestrating the user's `claude` / `codex` CLI against `kiln-arch.json`, honoring `codexMode`. Output: the built app.
-4. **Validate** — the trust gates. The **cross-stage seam** is enforced now by `npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json` (each stage traces to the one before, every MUST covered, least privilege, source pinned by digest). The **build-output** checks — running the `acceptanceTests`/`verificationMatrix` against the app and matching runtime permissions to the `effectivePermissionManifest` — land with the build stage. Output: a trust verdict.
+3. **Build** — follow `kiln:dev` on `kiln-arch.json`: generate the app (orchestrating the user's `claude` / `codex` CLI, honoring `codexMode`), test it against the `verificationMatrix`, and emit a verified **release candidate**. Output: `kiln-dev.json` (`status: ready_for_release`) + `kiln-artifact-manifest.json`.
+4. **Release** — follow `kiln:release` on `kiln-release.json` + the candidate manifest. **Gate:** `npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json kiln-artifact-manifest.json kiln-release.json` must exit 0 (the **candidate pin**: the release ships the exact verified build). Slice 1 stops at `audit_passed`/`prepared` (no external actions); real signing/notarization/distribution and `released` are Slice 2 (credential-gated). Output: `kiln-release.json` (the release record).
 
 ## Gates — never blow through a confirmation
 
@@ -31,4 +31,4 @@ The pipeline is autonomous **between** gates but stops **at** them. A non-empty 
 
 ## Recap
 
-At the end, give a human-language summary: what was understood, the key architecture decisions, what was built, and the trust verdict — plus any confirmations still open.
+At the end, give a human-language summary: what was understood, the key architecture decisions, what was built, and the release state — plus any confirmations still open.
