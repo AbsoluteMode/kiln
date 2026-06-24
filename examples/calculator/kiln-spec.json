@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "specRevision": 1,
+  "status": "ready",
+  "intent": {
+    "oneSentenceIntent": "A simple, fast macOS calculator for everyday arithmetic.",
+    "targetUsers": ["a Mac user who wants quick everyday arithmetic without a heavy app"],
+    "problem": "reaching for a calculator should be instant and never surprising",
+    "desiredOutcome": "type or click a calculation and get the correct result immediately",
+    "usageContexts": ["on demand", "on a single Mac", "alongside other work"],
+    "explicitConstraints": ["keep it simple and obvious", "fully offline"],
+    "nonGoals": ["no scientific or programmer modes", "no calculation history", "no currency conversion"]
+  },
+  "classification": {
+    "jobClass": "calculator_utility",
+    "interactionSurfaces": ["window"],
+    "lifecycle": "on_demand",
+    "interactionModel": "interactive"
+  },
+  "coreJourneys": [
+    {
+      "id": "JRN-001",
+      "actor": "a Mac user doing quick math",
+      "trigger": "the user opens the calculator",
+      "preconditions": [],
+      "steps": [
+        "type or click a number",
+        "choose an operation (+ - x /)",
+        "type or click the second number",
+        "press = (or Return)"
+      ],
+      "expectedOutcome": "the correct result is shown immediately",
+      "failureRecovery": "dividing by zero shows \"Error\" instead of crashing; Clear (or Esc) resets to 0 to continue"
+    }
+  ],
+  "scope": {
+    "must": ["REQ-001", "REQ-002", "REQ-003"],
+    "should": ["REQ-004", "REQ-005"],
+    "wont": ["scientific functions", "calculation history", "currency conversion"]
+  },
+  "sources": [
+    { "id": "S1", "type": "user_statement", "title": "user asked for a simple calculator", "supports": ["REQ-001", "REQ-002", "C1"] },
+    { "id": "S2", "type": "apple_primary_doc", "title": "macOS Calculator (system app) — the platform-standard calculator behavior", "supports": ["REQ-001", "REQ-002", "REQ-003", "C1"] }
+  ],
+  "analogClaims": [
+    {
+      "id": "C1",
+      "claim": "everyday calculators provide the four basic operations, a clear/reset, and accept keyboard input, and never crash on bad input",
+      "classification": "common_pattern",
+      "analogFit": "high",
+      "supportCount": 2,
+      "evidenceRefs": ["S1", "S2"],
+      "confidence": "high",
+      "criticality": "high"
+    }
+  ],
+  "requirements": {
+    "baseline": [
+      { "id": "REQ-001", "statement": "perform the four basic operations (+ - x /) and show the correct result on =", "priority": "must", "evidenceRefs": ["S1", "S2", "C1"] },
+      { "id": "REQ-002", "statement": "clear/reset the calculation back to 0", "priority": "must", "evidenceRefs": ["S2", "C1"] },
+      { "id": "REQ-003", "statement": "handle division by zero gracefully — show an error and never crash", "priority": "must", "evidenceRefs": ["S2", "C1"] }
+    ],
+    "customDelta": [
+      { "id": "REQ-004", "statement": "support a decimal point for non-integer numbers", "priority": "should", "evidenceRefs": ["S2"] },
+      { "id": "REQ-005", "statement": "accept keyboard input (digits, operators, Return, Esc)", "priority": "should", "evidenceRefs": ["S1", "S2"] }
+    ]
+  },
+  "qualityAttributes": ["instant", "obvious", "works fully offline", "never crashes on bad input"],
+  "dataHandlingIntent": {
+    "dataFlows": [],
+    "forbiddenPractices": ["no network", "no telemetry", "no persistence of user calculations"]
+  },
+  "capabilityNeeds": [],
+  "deliveryContext": {
+    "audience": "personal",
+    "distributionConstraint": "build_decides",
+    "compatibilityConstraints": ["macOS 12+"],
+    "offlineExpectation": "required"
+  },
+  "macBaseline": [
+    { "area": "main_menu", "status": "required" },
+    { "area": "keyboard_only", "status": "required" },
+    { "area": "voiceover", "status": "deferred" },
+    { "area": "appearance", "status": "required" },
+    { "area": "empty_state", "status": "not_applicable" },
+    { "area": "state_restoration", "status": "not_applicable" },
+    { "area": "undo_or_confirm", "status": "not_applicable" },
+    { "area": "window_behavior", "status": "required" },
+    { "area": "offline_error", "status": "not_applicable" }
+  ],
+  "successCriteria": [
+    "arithmetic results are correct for the four basic operations",
+    "Clear resets the display to 0",
+    "dividing by zero shows an error and the app keeps working"
+  ],
+  "acceptanceTests": [
+    {
+      "id": "AT-001",
+      "covers": ["REQ-001"],
+      "given": "the calculator is open",
+      "when": "the user computes 2 + 3, 9 - 4, 6 x 7, and 8 / 2",
+      "then": ["the results are 5, 5, 42, and 4 respectively"],
+      "requiredEvidence": ["automated_assertion"]
+    },
+    {
+      "id": "AT-002",
+      "covers": ["REQ-002"],
+      "given": "a value has been entered",
+      "when": "the user presses Clear",
+      "then": ["the display shows 0"],
+      "requiredEvidence": ["automated_assertion"]
+    },
+    {
+      "id": "AT-003",
+      "covers": ["REQ-003"],
+      "given": "the user enters 6 / 0",
+      "when": "the user presses =",
+      "then": ["the display shows \"Error\"", "the app does not crash and can be cleared to continue"],
+      "requiredEvidence": ["automated_assertion"]
+    }
+  ],
+  "unknowns": [],
+  "unresolvedRisks": [],
+  "decisionLog": [
+    { "decision": "no persistence — calculations are transient, in-memory only", "rationale": "a simple calculator has no reason to store user data; keeps it offline and private", "tier": "auto" },
+    { "decision": "default to a basic four-function calculator", "rationale": "matches the explicit request and the platform standard; scientific/history are non-goals", "tier": "auto" }
+  ],
+  "handoff": {
+    "buildMayDecide": ["framework", "exact button layout and styling", "number formatting details"],
+    "buildMustPreserve": ["the four basic operations are correct", "Clear resets to 0", "division by zero is safe (no crash)", "offline-only, no persistence"],
+    "stopConditions": ["any requirement implies a network call", "any requirement implies persisting user data"],
+    "verificationEvidenceRequired": ["automated assertion per acceptance test"]
+  },
+  "changeLog": ["rev1: initial contract"]
+}

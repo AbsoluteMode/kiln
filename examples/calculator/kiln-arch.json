@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "archRevision": 1,
+  "status": "ready_for_build",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:563d2fb10a468e5ab94a0fe8e24a39222dd2e5c4fbc74940e0ef51408fe6bb2b" },
+  "codexStatus": "off",
+  "architectureSummary": "A single-process native Swift/SwiftUI window app with a pure arithmetic state-machine engine that guards division by zero, computes the four basic operations, and never touches the network or disk.",
+  "platform": {
+    "artifactTypes": ["macOS_app"],
+    "language": "Swift",
+    "runtime": "native",
+    "uiFrameworks": ["SwiftUI"],
+    "minimumMacOS": "12.0",
+    "processTopology": "single_process",
+    "buildSystem": "Xcode"
+  },
+  "system": {
+    "components": [
+      { "id": "CMP-UI", "responsibility": "calculator window: display, button grid, keyboard input", "owns": ["display", "buttons"] },
+      { "id": "CMP-ENGINE", "responsibility": "pure arithmetic state machine (digits, operators, equals, clear, div-by-zero guard)", "owns": ["calculation state", "evaluation"] }
+    ],
+    "interfaces": [
+      { "id": "IF-1", "from": "CMP-UI", "to": "CMP-ENGINE", "contract": "send input events, observe the display string" }
+    ],
+    "processes": ["single foreground app process"],
+    "dependencyRules": ["UI depends on Engine; no reverse dependencies"]
+  },
+  "ux": {
+    "surfaces": ["main_window"],
+    "journeyFlows": [
+      { "journeyId": "JRN-001", "flow": ["enter a number", "choose an operation", "enter the second number", "press = and read the result"] }
+    ],
+    "stateModel": ["idle", "typing", "operator_pending", "result", "error"],
+    "commandModel": ["digits 0-9", "+ - x /", "Equals (Return)", "Clear (Esc)", "decimal point"],
+    "accessibilityPlan": ["full keyboard control", "VoiceOver labels deferred"]
+  },
+  "data": {
+    "entities": ["none — transient calculation state held in memory"],
+    "invariants": ["the display always reflects the current engine state", "no value is persisted"],
+    "persistence": "none (in-memory only)",
+    "migrations": [],
+    "lifecycle": ["state created on launch, discarded on quit"],
+    "concurrency": "main-actor only",
+    "recovery": "Clear resets the engine to 0; an error state is cleared by Clear or a new digit"
+  },
+  "capabilities": [],
+  "integrations": { "networkPlan": "none — fully offline", "externalServices": [] },
+  "security": {
+    "threatModel": {
+      "assets": ["none significant — no user data, no network"],
+      "trustBoundaries": ["app sandbox"],
+      "abuseCases": ["malformed input (handled by the engine)"],
+      "mitigations": ["no network entitlement", "no sensitive permissions", "no persistence"],
+      "residualRisks": []
+    },
+    "effectivePermissionManifest": {
+      "entitlements": ["com.apple.security.app-sandbox"],
+      "tccUsageDescriptions": [],
+      "sandboxAccess": [],
+      "keychainAccess": [],
+      "appGroups": [],
+      "appleEvents": [],
+      "hardenedRuntime": true,
+      "runtimeExceptions": [],
+      "privacyManifestPlan": "no tracking, no required-reason APIs"
+    },
+    "loggingPolicy": "os_log only, no PII, no user content",
+    "secretPolicy": "no secrets"
+  },
+  "reliability": {
+    "failureModel": ["division by zero", "malformed or overflowing input"],
+    "recovery": ["show \"Error\" and require Clear or a new entry", "format large/non-integer results safely"],
+    "observability": ["os_log subsystem com.kiln.calculator"],
+    "qualityBudgets": ["result shown within one UI frame"],
+    "verificationMatrix": [
+      { "id": "VER-001", "acceptanceTestId": "AT-001", "level": "unit", "harness": "XCTest", "preconditions": ["engine initialised"], "execution": "compute 2+3, 9-4, 6x7, 8/2", "oracle": ["results are 5, 5, 42, 4"], "requiredEvidence": ["automated_assertion"], "environment": ["macOS 12+"], "flakinessControls": ["deterministic pure engine"] },
+      { "id": "VER-002", "acceptanceTestId": "AT-002", "level": "unit", "harness": "XCTest", "preconditions": ["a value entered"], "execution": "invoke clear", "oracle": ["display is \"0\""], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": [] },
+      { "id": "VER-003", "acceptanceTestId": "AT-003", "level": "unit", "harness": "XCTest", "preconditions": ["6 / 0 entered"], "execution": "press equals", "oracle": ["display is \"Error\"", "no crash; clearable"], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": [] }
+    ]
+  },
+  "build": {
+    "project": "Swift Package (xcodebuild / swift test compatible)",
+    "targets": ["Calculator", "CalcKit", "CalcKitTests"],
+    "configurations": ["Debug", "Release"],
+    "commands": ["swift build", "swift test"],
+    "packaging": ".app bundle",
+    "signing": "ad-hoc for local run",
+    "notarization": "required for distribution outside the App Store",
+    "ci": ["build", "test"],
+    "releaseArtifacts": ["Calculator.app"],
+    "reproducibility": "pinned toolchain via swift-tools-version"
+  },
+  "dependencies": [],
+  "evidence": [
+    { "id": "EV-1", "type": "apple_primary_doc", "title": "macOS Calculator — platform-standard four-function behavior", "source": "developer.apple.com / system app", "accessedAt": null, "versionOrDate": null, "supports": ["ARCH-DEC-STACK-1", "ARCH-DEC-ENGINE-1"] }
+  ],
+  "decisionLog": [
+    {
+      "id": "ARCH-DEC-STACK-1", "phase": "platformTopology", "question": "which artifact type, language, and UI framework?",
+      "status": "decided", "authority": "delegated", "engineeringRisk": "low", "reversibility": "moderate",
+      "hardConstraints": ["native macOS window", "offline-only", "keyboard input"],
+      "options": [
+        { "id": "O1", "description": "native Swift/SwiftUI window app", "advantages": ["native keyboard + window", "tiny footprint"], "disadvantages": [], "eliminatedBy": [] },
+        { "id": "O2", "description": "Electron/web wrapper", "advantages": ["familiar web stack"], "disadvantages": ["heavy for a calculator", "weaker native keyboard"], "eliminatedBy": ["hard constraint: tiny native footprint"] }
+      ],
+      "selectionCriteria": [ { "criterion": "native keyboard + window", "priority": "must" }, { "criterion": "minimal footprint", "priority": "high" } ],
+      "chosenOptionId": "O1", "recommendedOptionId": null,
+      "rationale": "a calculator is a tiny native utility; SwiftUI gives the window, buttons and keyboard with no dependencies",
+      "rejectedOptions": [ { "optionId": "O2", "reason": "disproportionately heavy" } ],
+      "tracesTo": ["REQ-001", "JRN-001"], "evidenceRefs": ["EV-1"], "confidence": "high",
+      "consequences": ["Swift toolchain required"], "fallback": null, "verificationPlan": "build and run on macOS 12"
+    },
+    {
+      "id": "ARCH-DEC-ENGINE-1", "phase": "reliabilityVerification", "question": "how to keep arithmetic correct and crash-free?",
+      "status": "decided", "authority": "inherited", "engineeringRisk": "low", "reversibility": "easy",
+      "hardConstraints": ["four operations correct", "division by zero must not crash", "Clear resets to 0"],
+      "options": [ { "id": "E1", "description": "pure in-memory state machine with an explicit div-by-zero guard and a deterministic formatter", "advantages": ["fully unit-testable", "no crash on bad input"], "disadvantages": [], "eliminatedBy": [] } ],
+      "selectionCriteria": [ { "criterion": "deterministic + testable", "priority": "must" }, { "criterion": "crash-free on bad input", "priority": "must" } ],
+      "chosenOptionId": "E1", "recommendedOptionId": null,
+      "rationale": "a pure engine separated from the UI makes every acceptance test a fast deterministic unit test and guarantees the div-by-zero safety requirement",
+      "rejectedOptions": [], "tracesTo": ["REQ-001", "REQ-002", "REQ-003"], "evidenceRefs": ["EV-1"], "confidence": "high",
+      "consequences": ["UI is a thin shell over the engine"], "fallback": null, "verificationPlan": "VER-001, VER-002, VER-003"
+    }
+  ],
+  "coverageMatrix": [
+    { "requirementId": "REQ-001", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-STACK-1", "ARCH-DEC-ENGINE-1"], "componentIds": ["CMP-UI", "CMP-ENGINE"], "capabilityIds": [], "verificationIds": ["VER-001"], "coverage": "complete" },
+    { "requirementId": "REQ-002", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-ENGINE-1"], "componentIds": ["CMP-ENGINE"], "capabilityIds": [], "verificationIds": ["VER-002"], "coverage": "complete" },
+    { "requirementId": "REQ-003", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-ENGINE-1"], "componentIds": ["CMP-ENGINE"], "capabilityIds": [], "verificationIds": ["VER-003"], "coverage": "complete" }
+  ],
+  "assumptions": ["the user runs macOS 12 or later"],
+  "risks": ["floating-point rounding on non-integer results (acceptable and standard for a basic calculator)"],
+  "openConfirmations": [],
+  "environmentPrerequisites": [
+    { "id": "ENV-1", "prerequisite": "Xcode + Swift toolchain", "affects": "build", "detectionMethod": "swift --version", "fallback": null, "blocking": true },
+    { "id": "ENV-2", "prerequisite": "Developer ID for notarized distribution", "affects": "release", "detectionMethod": "security find-identity -v -p codesigning", "fallback": "ad-hoc signing for local run", "blocking": false }
+  ],
+  "handoff": {
+    "buildMustImplement": ["four basic operations", "Clear/reset to 0", "division-by-zero safety", "keyboard input"],
+    "buildMustPreserve": ["arithmetic correctness", "Clear resets to 0", "no crash on division by zero", "offline-only, no persistence"],
+    "buildMustNotDo": ["no network", "no persistence of calculations", "no analytics"],
+    "buildMayDecide": ["exact button layout and styling", "number formatting details", "view decomposition"],
+    "stopConditions": ["any requirement implies a network call", "any requirement implies persisting user data"],
+    "expectedArtifacts": ["Calculator.app", "test suite"],
+    "requiredVerificationEvidence": ["automated assertion per acceptance test"]
+  },
+  "changeLog": ["rev1: initial architecture"]
+}
