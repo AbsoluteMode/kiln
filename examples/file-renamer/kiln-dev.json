@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "1.0",
+  "devRevision": 1,
+  "status": "ready_for_validation",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:63e815d1c2f332de63764f57254c3bb98b8a808c07def80bb6a4a350407b8bb3" },
+  "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:f892103062882cbed87292da6a71e18853a556cdbaf2f227d8c3ff5281d5ff13" },
+  "codexStatus": "off",
+  "implementationUnits": [
+    {
+      "id": "IMP-ENGINE",
+      "componentId": "CMP-ENGINE",
+      "interfaceIds": ["IF-1"],
+      "tracesTo": ["REQ-001", "REQ-003", "JRN-001"],
+      "files": [
+        { "path": "Sources/RenameKit/RenameEngine.swift", "symbols": ["RenameEngine"] },
+        { "path": "Sources/RenameKit/ConflictDetector.swift", "symbols": ["ConflictDetector"] }
+      ],
+      "verificationIds": ["VER-001", "VER-003"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-FILES",
+      "componentId": "CMP-FILES",
+      "interfaceIds": ["IF-2", "IF-3"],
+      "tracesTo": ["CAP-001"],
+      "files": [ { "path": "Sources/RenameKit/FileAccess.swift", "symbols": ["FileAccess", "RenameOperation"] } ],
+      "verificationIds": ["VER-002"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-UNDO",
+      "componentId": "CMP-UNDO",
+      "interfaceIds": ["IF-3"],
+      "tracesTo": ["REQ-002"],
+      "files": [ { "path": "Sources/RenameKit/UndoStack.swift", "symbols": ["UndoStack"] } ],
+      "verificationIds": ["VER-002"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-UI",
+      "componentId": "CMP-UI",
+      "interfaceIds": ["IF-1"],
+      "tracesTo": ["REQ-001", "JRN-001"],
+      "files": [
+        { "path": "Sources/FileRenamer/FileRenamerApp.swift", "symbols": ["FileRenamerApp"] },
+        { "path": "Sources/FileRenamer/FileTableView.swift", "symbols": ["ContentView", "RenamerModel"] }
+      ],
+      "verificationIds": [],
+      "status": "implemented"
+    }
+  ],
+  "verificationResults": [
+    { "verificationId": "VER-001", "result": "pass", "evidenceRefs": ["build/test.log"] },
+    { "verificationId": "VER-002", "result": "pass", "evidenceRefs": ["build/test.log"] },
+    { "verificationId": "VER-003", "result": "pass", "evidenceRefs": ["build/test.log"] }
+  ],
+  "loggingImplemented": ["os_log subsystem com.kiln.renamer"],
+  "defects": [],
+  "intentIssues": [],
+  "architectureIssues": [],
+  "environmentIssues": [],
+  "review": {
+    "reviewer": "self",
+    "verdict": "pass",
+    "notes": [
+      "3 MUST acceptance tests pass via real `swift test` on disposable tmp fixtures (build/test.log)",
+      "FileRenamer.app builds (swift build -c release) and passes launch-smoke",
+      "project built as a Swift Package + xcodebuild-compatible (not a standalone .xcodeproj); build tool and intent-delegated packaging preserved",
+      "signing/notarization/UI/a11y/sanitizers deferred — no Developer ID; core-logic MVP"
+    ]
+  },
+  "openRisks": ["a previewed-but-unintended rename is recoverable only via in-session undo"],
+  "changeLog": ["rev1: first real build of file-renamer from the arch contract"]
+}
