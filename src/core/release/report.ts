@@ -170,8 +170,21 @@ export const releaseReportSchema = z
         if (ch.state !== 'pending') ctx.addIssue({ code: 'custom', message: `audit_only: channel ${ch.id} must be pending` });
       }
     }
-    // release gate
+    // every channel must be explicitly authorized
+    const authorizedChannels = new Set(r.releaseContext.authorizedChannelIds);
+    for (const ch of r.channels) {
+      if (!authorizedChannels.has(ch.id)) {
+        ctx.addIssue({ code: 'custom', message: `channel ${ch.id} is not in releaseContext.authorizedChannelIds` });
+      }
+    }
+    // release gate — never vacuously released
     if (r.status === 'released') {
+      if (r.selectedCandidates.length === 0) {
+        ctx.addIssue({ code: 'custom', message: 'released requires at least one selected candidate' });
+      }
+      if (!r.channels.some((ch) => ch.required)) {
+        ctx.addIssue({ code: 'custom', message: 'released requires at least one required channel' });
+      }
       for (const ch of r.channels) {
         if (ch.required && ch.state !== 'available_verified') {
           ctx.addIssue({ code: 'custom', message: `released: required channel ${ch.id} is ${ch.state}, not available_verified` });

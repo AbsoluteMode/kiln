@@ -201,4 +201,14 @@ describe('cross-stage seam: release ↔ dev ↔ manifest', () => {
     r.releaseContext.authorizedArtifactIds = [];
     expect(validateReleaseAgainstDev(r, devOf('file-renamer'), manifestFor('file-renamer')).some((v) => v.code === 'unauthorized_artifact')).toBe(true);
   });
+  it('flags a release whose identity disagrees with the candidate build', () => {
+    const r = releaseFor('file-renamer');
+    r.releaseIdentity.buildNumber = '2';
+    expect(validateReleaseAgainstDev(r, devOf('file-renamer'), manifestFor('file-renamer')).some((v) => v.code === 'identity_mismatch')).toBe(true);
+  });
+  it('flags a manifest referencing a different upstream schemaVersion', () => {
+    const m = manifestFor('file-renamer');
+    m.sourceSpec.schemaVersion = '2.0';
+    expect(validateManifestAgainstDev(m, devOf('file-renamer')).some((v) => v.code === 'upstream_spec_mismatch')).toBe(true);
+  });
 });

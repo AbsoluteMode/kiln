@@ -67,4 +67,19 @@ describe('kiln-release v1', () => {
     raw.channels[0].candidateArtifactId = 'ART-NOPE';
     expect(() => parseReleaseReport(raw)).toThrow();
   });
+
+  it('rejects a channel not listed in authorizedChannelIds', () => {
+    const raw = validRelease();
+    raw.releaseContext.authorizedChannelIds = [];
+    expect(() => parseReleaseReport(raw)).toThrow();
+  });
+
+  it('rejects a vacuous released status (no candidate / no required channel)', () => {
+    const raw = validRelease();
+    raw.status = 'released';
+    raw.releaseContext.maximumExternalAction = 'make_available';
+    raw.selectedCandidates = [];
+    raw.channels = [];
+    expect(() => parseReleaseReport(raw)).toThrow();
+  });
 });

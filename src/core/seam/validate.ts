@@ -315,10 +315,18 @@ export function validateManifestAgainstDev(manifest: ArtifactManifest, dev: DevR
   } else if (manifest.sourceDev.contentDigest !== digestDev(dev)) {
     violations.push({ code: 'dev_digest_mismatch', message: 'manifest sourceDev.contentDigest does not match the provided dev report' });
   }
-  if (manifest.sourceSpec.contentDigest !== dev.sourceSpec.contentDigest || manifest.sourceSpec.specRevision !== dev.sourceSpec.specRevision) {
+  if (
+    manifest.sourceSpec.contentDigest !== dev.sourceSpec.contentDigest ||
+    manifest.sourceSpec.specRevision !== dev.sourceSpec.specRevision ||
+    manifest.sourceSpec.schemaVersion !== dev.sourceSpec.schemaVersion
+  ) {
     violations.push({ code: 'upstream_spec_mismatch', message: 'manifest sourceSpec disagrees with the dev report' });
   }
-  if (manifest.sourceArch.contentDigest !== dev.sourceArch.contentDigest || manifest.sourceArch.archRevision !== dev.sourceArch.archRevision) {
+  if (
+    manifest.sourceArch.contentDigest !== dev.sourceArch.contentDigest ||
+    manifest.sourceArch.archRevision !== dev.sourceArch.archRevision ||
+    manifest.sourceArch.schemaVersion !== dev.sourceArch.schemaVersion
+  ) {
     violations.push({ code: 'upstream_arch_mismatch', message: 'manifest sourceArch disagrees with the dev report' });
   }
   return violations;
@@ -349,11 +357,21 @@ export function validateReleaseAgainstDev(release: ReleaseReport, dev: DevReport
     violations.push({ code: 'manifest_digest_mismatch', message: 'release sourceDev.artifactManifestDigest does not match the provided manifest' });
   }
 
+  if (
+    release.releaseIdentity.version !== release.releaseContext.version ||
+    release.releaseIdentity.buildNumber !== release.releaseContext.buildNumber
+  ) {
+    violations.push({ code: 'identity_mismatch', message: 'releaseIdentity version/build disagrees with releaseContext' });
+  }
+
   const byId = new Map(manifest.artifacts.map((a) => [a.id, a]));
   const authorized = new Set(release.releaseContext.authorizedArtifactIds);
   for (const c of release.selectedCandidates) {
     if (!authorized.has(c.artifactId)) {
       violations.push({ code: 'unauthorized_artifact', message: `selected candidate ${c.artifactId} is not in authorizedArtifactIds` });
+    }
+    if (c.applicationVersion !== release.releaseIdentity.version || c.buildNumber !== release.releaseIdentity.buildNumber) {
+      violations.push({ code: 'identity_mismatch', message: `selected candidate ${c.artifactId} version/build does not match releaseIdentity` });
     }
     const a = byId.get(c.artifactId);
     if (!a) {
