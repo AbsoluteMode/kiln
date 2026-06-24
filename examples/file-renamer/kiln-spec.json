@@ -1,0 +1,179 @@
+{
+  "schemaVersion": "1.0",
+  "specRevision": 1,
+  "status": "ready",
+  "intent": {
+    "oneSentenceIntent": "A simple, fast batch file renamer that lets you preview and undo before touching any file.",
+    "targetUsers": ["a Mac user who needs to rename many files at once without fear"],
+    "problem": "renaming files in bulk is risky and Finder's tools are limited",
+    "desiredOutcome": "rename a batch of files safely, seeing every change before it happens and able to undo it",
+    "usageContexts": ["on demand", "on a single Mac", "on user-selected folders"],
+    "explicitConstraints": ["keep it simple and fast, not a power-user sprawl"],
+    "nonGoals": ["no cloud", "no file deletion", "no account"]
+  },
+  "classification": {
+    "jobClass": "file_tool",
+    "interactionSurfaces": ["window"],
+    "lifecycle": "on_demand",
+    "interactionModel": "single_shot"
+  },
+  "coreJourneys": [
+    {
+      "id": "JRN-001",
+      "actor": "single Mac owner",
+      "trigger": "user drops a folder of files onto the app",
+      "preconditions": ["the user picked the folder via the open panel"],
+      "steps": [
+        "load the files into a table",
+        "type a find/replace or pick a rule",
+        "review the live preview with changed parts highlighted",
+        "press Apply"
+      ],
+      "expectedOutcome": "the files are renamed exactly as previewed",
+      "failureRecovery": "if two files would collide, Apply is blocked before any change; after Apply, Undo restores every original name"
+    }
+  ],
+  "scope": {
+    "must": ["REQ-001", "REQ-002", "REQ-003"],
+    "should": ["REQ-004", "REQ-005"],
+    "wont": ["cloud sync", "file deletion", "account/sign-in"]
+  },
+  "sources": [
+    { "id": "S1", "type": "user_statement", "title": "user asked for a simple, fast batch file renamer", "supports": ["REQ-005"] },
+    { "id": "S2", "type": "analog_product_doc", "title": "Batchio (batchio.dev)", "url": "https://batchio.dev/guides/best-file-renamer-mac", "supports": ["REQ-001", "REQ-002", "REQ-003", "C1"] },
+    { "id": "S3", "type": "analog_product_doc", "title": "Transnomino (transnomino.com)", "url": "https://www.transnomino.com/", "supports": ["REQ-001", "REQ-004", "C1"] },
+    { "id": "S4", "type": "apple_primary_doc", "title": "App Sandbox — security-scoped bookmarks", "supports": ["CAP-001"] }
+  ],
+  "analogClaims": [
+    {
+      "id": "C1",
+      "claim": "well-regarded renamers compute a live preview as a pure function of the rules, detect conflicts before apply, and keep a full undo stack",
+      "classification": "common_pattern",
+      "analogFit": "high",
+      "supportCount": 2,
+      "evidenceRefs": ["S2", "S3"],
+      "confidence": "high",
+      "criticality": "high"
+    }
+  ],
+  "requirements": {
+    "baseline": [
+      { "id": "REQ-001", "statement": "show a live preview of new names, with changed parts highlighted, before anything is applied", "priority": "must", "evidenceRefs": ["S2", "S3", "C1"] },
+      { "id": "REQ-002", "statement": "provide a full undo that restores every original name after an applied batch", "priority": "must", "evidenceRefs": ["S2", "C1"] },
+      { "id": "REQ-003", "statement": "detect name conflicts and block Apply before any file is changed", "priority": "must", "evidenceRefs": ["S2", "C1"] },
+      { "id": "REQ-004", "statement": "support regex find & replace plus common rules (numbering, case, replace)", "priority": "should", "evidenceRefs": ["S3"] }
+    ],
+    "customDelta": [
+      { "id": "REQ-005", "statement": "stay simple and fast — a focused rule set, not a power-user sprawl", "priority": "should", "evidenceRefs": ["S1"] }
+    ]
+  },
+  "qualityAttributes": ["safe by default", "fast live preview", "works fully offline"],
+  "dataHandlingIntent": {
+    "dataFlows": [
+      {
+        "dataCategory": "file names and metadata in user-selected folders",
+        "source": "user-selected folders",
+        "purpose": "compute and apply renames",
+        "sensitivity": "medium",
+        "destination": "the same local files",
+        "locality": "local",
+        "retention": "not retained — read into memory, written back on Apply",
+        "deletion": "n/a (no separate store of file data)",
+        "thirdParties": []
+      },
+      {
+        "dataCategory": "recent rule presets",
+        "source": "the user",
+        "purpose": "reuse rules across sessions",
+        "sensitivity": "low",
+        "destination": "local device",
+        "locality": "local",
+        "retention": "until the user clears them",
+        "deletion": "clear presets in-app",
+        "thirdParties": []
+      }
+    ],
+    "forbiddenPractices": ["no network", "no file deletion", "no telemetry"]
+  },
+  "capabilityNeeds": [
+    {
+      "id": "CAP-001",
+      "capability": "read-write file access to user-selected folders",
+      "minimalScope": "only folders the user picks, via the open panel + security-scoped bookmarks",
+      "purpose": "read names and rename files in place",
+      "userBenefit": "rename the user's own files",
+      "confirmationStatus": "confirmed_by_request",
+      "evidenceRefs": ["S1", "S4"]
+    }
+  ],
+  "deliveryContext": {
+    "audience": "personal",
+    "distributionConstraint": "build_decides",
+    "compatibilityConstraints": ["macOS 12+"],
+    "offlineExpectation": "required"
+  },
+  "macBaseline": [
+    { "area": "main_menu", "status": "required" },
+    { "area": "keyboard_only", "status": "required" },
+    { "area": "voiceover", "status": "deferred" },
+    { "area": "appearance", "status": "required" },
+    { "area": "empty_state", "status": "required" },
+    { "area": "state_restoration", "status": "deferred" },
+    { "area": "undo_or_confirm", "status": "required" },
+    { "area": "window_behavior", "status": "required" },
+    { "area": "offline_error", "status": "required" }
+  ],
+  "successCriteria": [
+    "user previews every new name before any file is touched",
+    "user can fully undo an applied batch",
+    "no file is overwritten because of a name conflict"
+  ],
+  "acceptanceTests": [
+    {
+      "id": "AT-001",
+      "covers": ["REQ-001"],
+      "given": "10 files are loaded",
+      "when": "the user types a find/replace",
+      "then": ["new names update live with changes highlighted", "no file is modified yet"],
+      "requiredEvidence": ["screenshot", "automated_assertion"]
+    },
+    {
+      "id": "AT-002",
+      "covers": ["REQ-002"],
+      "given": "a batch has been applied",
+      "when": "the user chooses Undo",
+      "then": ["every original name is restored"],
+      "requiredEvidence": ["automated_assertion"]
+    },
+    {
+      "id": "AT-003",
+      "covers": ["REQ-003"],
+      "given": "a rule that maps two files to the same name",
+      "when": "the user presses Apply",
+      "then": ["Apply is blocked", "the conflict is shown", "no file is changed"],
+      "requiredEvidence": ["automated_assertion"]
+    }
+  ],
+  "unknowns": [
+    {
+      "id": "UNK-001",
+      "description": "should it support metadata (EXIF/audio) renaming, or stay simple?",
+      "blocking": false,
+      "safeDefault": "stay simple — name-based rules only",
+      "resolutionOwner": "user",
+      "discoveryTrigger": "user requests metadata-based rules"
+    }
+  ],
+  "unresolvedRisks": ["renaming is destructive — undo and conflict detection are mandatory, not optional"],
+  "decisionLog": [
+    { "decision": "explicit Apply gate; never rename on keystroke", "rationale": "a destructive op must be gated behind preview; UI/UX decided for the user", "tier": "auto" },
+    { "decision": "file access scoped to user-selected folders", "rationale": "minimal capability logically required by the request; confirmed by request", "tier": "confirmed" }
+  ],
+  "handoff": {
+    "buildMayDecide": ["framework", "exact entitlements and Info.plist", "rule engine", "signing and packaging"],
+    "buildMustPreserve": ["preview before apply", "full undo", "conflict detection", "user-selected file scope only", "offline-only"],
+    "stopConditions": ["any requirement implies deleting files", "any requirement implies a network call", "broad (non-user-selected) file access is requested"],
+    "verificationEvidenceRequired": ["screenshot of live preview", "automated assertion for undo and conflict blocking"]
+  },
+  "changeLog": ["rev1: initial contract"]
+}

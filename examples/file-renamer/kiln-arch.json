@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "1.0",
+  "archRevision": 1,
+  "status": "ready_for_build",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:63e815d1c2f332de63764f57254c3bb98b8a808c07def80bb6a4a350407b8bb3" },
+  "codexStatus": "off",
+  "architectureSummary": "A single-process native Swift windowed app that loads user-selected files, computes a pure live preview of renames, blocks conflicts before apply, renames in place under security-scoped access, and supports full undo — all offline.",
+  "platform": {
+    "artifactTypes": ["macOS_app"],
+    "language": "Swift",
+    "runtime": "native",
+    "uiFrameworks": ["SwiftUI"],
+    "minimumMacOS": "12.0",
+    "processTopology": "single_process",
+    "buildSystem": "Xcode"
+  },
+  "system": {
+    "components": [
+      { "id": "CMP-UI", "responsibility": "file table, rule editor, live preview, Apply", "owns": ["table", "preview column"] },
+      { "id": "CMP-ENGINE", "responsibility": "pure preview computation + conflict detection + apply", "owns": ["rule evaluation", "conflict check"] },
+      { "id": "CMP-FILES", "responsibility": "security-scoped file access and atomic renames", "owns": ["bookmarks", "rename ops"] },
+      { "id": "CMP-UNDO", "responsibility": "undo stack for applied batches", "owns": ["undo history"] }
+    ],
+    "interfaces": [
+      { "id": "IF-1", "from": "CMP-UI", "to": "CMP-ENGINE", "contract": "submit rules, receive preview + conflicts" },
+      { "id": "IF-2", "from": "CMP-ENGINE", "to": "CMP-FILES", "contract": "apply a validated rename plan" },
+      { "id": "IF-3", "from": "CMP-FILES", "to": "CMP-UNDO", "contract": "record an applied batch for undo" }
+    ],
+    "processes": ["single foreground app process"],
+    "dependencyRules": ["UI → Engine → Files → Undo; no reverse dependencies"]
+  },
+  "ux": {
+    "surfaces": ["main_window"],
+    "journeyFlows": [
+      { "journeyId": "JRN-001", "flow": ["drop or pick a folder", "files load into the table", "type a rule", "review highlighted live preview", "press Apply", "files renamed or conflict blocked"] }
+    ],
+    "stateModel": ["empty", "preview", "applied"],
+    "commandModel": ["Apply (Cmd-Return)", "Undo (Cmd-Z)"],
+    "accessibilityPlan": ["full keyboard control", "VoiceOver labels deferred"]
+  },
+  "data": {
+    "entities": ["LoadedFile(url, originalName, previewName)", "Rule", "Preset"],
+    "invariants": ["preview is a pure function of (files, rules)", "no file mutated before Apply"],
+    "persistence": "in-memory for files; UserDefaults for rule presets",
+    "migrations": [],
+    "lifecycle": ["files read into memory, written back on Apply", "presets persisted until cleared"],
+    "concurrency": "main-actor UI; file ops on a background queue",
+    "recovery": "undo stack restores original names; conflicts blocked before any write"
+  },
+  "capabilities": [
+    {
+      "id": "ARCH-CAP-1",
+      "capabilityNeedId": "CAP-001",
+      "mechanism": "NSOpenPanel + security-scoped bookmarks",
+      "owningComponent": "CMP-FILES",
+      "availability": "macOS 12+ sandboxed",
+      "fallback": "re-prompt for folder access if a bookmark fails to resolve",
+      "failureBehavior": "abort the batch and surface an error; no partial rename"
+    }
+  ],
+  "integrations": { "networkPlan": "none — fully offline", "externalServices": [] },
+  "security": {
+    "threatModel": {
+      "assets": ["the user's files and their names"],
+      "trustBoundaries": ["app sandbox", "user-selected folder scope"],
+      "abuseCases": ["accidental data loss via bad rename", "name collision overwriting a file"],
+      "mitigations": ["explicit Apply gate", "conflict detection blocks collisions", "full undo", "scope limited to user-selected folders"],
+      "residualRisks": ["user applies an unintended-but-valid rename (recoverable via undo)"]
+    },
+    "effectivePermissionManifest": {
+      "entitlements": ["com.apple.security.app-sandbox", "com.apple.security.files.user-selected.read-write", "com.apple.security.files.bookmarks.app-scope"],
+      "tccUsageDescriptions": [],
+      "sandboxAccess": ["user-selected read-write"],
+      "keychainAccess": [],
+      "appGroups": [],
+      "appleEvents": [],
+      "hardenedRuntime": true,
+      "runtimeExceptions": [],
+      "privacyManifestPlan": "no tracking; declares no required-reason APIs beyond file access"
+    },
+    "loggingPolicy": "os_log; log file counts and rule ids, never full file contents",
+    "secretPolicy": "no secrets"
+  },
+  "reliability": {
+    "failureModel": ["name conflict", "bookmark resolution failure", "rename I/O error"],
+    "recovery": ["block apply on conflict", "undo restores originals", "abort batch on I/O error"],
+    "observability": ["os_log subsystem com.kiln.renamer"],
+    "qualityBudgets": ["preview recompute under 16ms for 1k files"],
+    "verificationMatrix": [
+      { "id": "VER-001", "acceptanceTestId": "AT-001", "level": "ui", "harness": "XCUITest", "preconditions": ["10 files loaded"], "execution": "type a find/replace", "oracle": ["names update live with changes highlighted", "no file modified yet"], "requiredEvidence": ["screenshot", "automated_assertion"], "environment": ["macOS 12+"], "flakinessControls": ["temp fixture dir"] },
+      { "id": "VER-002", "acceptanceTestId": "AT-002", "level": "integration", "harness": "XCTest", "preconditions": ["a batch applied"], "execution": "invoke Undo", "oracle": ["every original name restored"], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": ["temp fixture dir"] },
+      { "id": "VER-003", "acceptanceTestId": "AT-003", "level": "integration", "harness": "XCTest", "preconditions": ["two files map to one name"], "execution": "press Apply", "oracle": ["Apply blocked", "conflict shown", "no file changed"], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": [] }
+    ]
+  },
+  "build": {
+    "project": "Xcode project, single sandboxed app target",
+    "targets": ["FileRenamer", "FileRenamerTests"],
+    "configurations": ["Debug", "Release"],
+    "commands": ["xcodebuild -scheme FileRenamer build", "xcodebuild -scheme FileRenamer test"],
+    "packaging": ".app bundle, sandboxed",
+    "signing": "Developer ID",
+    "notarization": "required (sandboxed file-access app distributed outside the App Store)",
+    "ci": ["build", "test", "archive", "notarize"],
+    "releaseArtifacts": ["FileRenamer.app", "notarized .dmg"],
+    "reproducibility": "pinned toolchain via .xcode-version"
+  },
+  "dependencies": [],
+  "evidence": [
+    { "id": "EV-1", "type": "apple_primary_doc", "title": "App Sandbox — security-scoped bookmarks", "source": "developer.apple.com", "accessedAt": null, "versionOrDate": null, "supports": ["ARCH-DEC-FILES-1"] },
+    { "id": "EV-2", "type": "experiment", "title": "bookmark re-resolution across relaunch", "source": "isolated probe", "accessedAt": null, "versionOrDate": null, "supports": ["ARCH-DEC-FILES-1"] }
+  ],
+  "decisionLog": [
+    {
+      "id": "ARCH-DEC-STACK-1", "phase": "platformTopology", "question": "which artifact, language, and UI framework?",
+      "status": "decided", "authority": "delegated", "engineeringRisk": "low", "reversibility": "moderate",
+      "hardConstraints": ["responsive live-preview table", "sandboxed file access", "drag-and-drop"],
+      "options": [
+        { "id": "O1", "description": "native Swift/SwiftUI window app", "advantages": ["native file APIs", "fast preview table"], "disadvantages": [], "eliminatedBy": [] },
+        { "id": "O2", "description": "Electron app", "advantages": ["web stack"], "disadvantages": ["fights the sandbox and file APIs", "heavy"], "eliminatedBy": ["hard constraint: sandboxed file access"] }
+      ],
+      "selectionCriteria": [ { "criterion": "sandboxed user-selected file access", "priority": "must" }, { "criterion": "responsive preview", "priority": "high" } ],
+      "chosenOptionId": "O1", "recommendedOptionId": null,
+      "rationale": "native file APIs and a fast SwiftUI table beat a web wrapper that fights the sandbox",
+      "rejectedOptions": [ { "optionId": "O2", "reason": "poor fit with App Sandbox and file APIs" } ],
+      "tracesTo": ["REQ-001", "CAP-001"], "evidenceRefs": [], "confidence": "high",
+      "consequences": ["Swift toolchain required"], "fallback": null, "verificationPlan": "build and run on macOS 12"
+    },
+    {
+      "id": "ARCH-DEC-FILES-1", "phase": "securityPrivacy", "question": "how to access user files across relaunches at least privilege?",
+      "status": "decided", "authority": "inherited", "engineeringRisk": "medium", "reversibility": "moderate",
+      "hardConstraints": ["CAP-001 confirmed_by_request", "user-selected scope only"],
+      "options": [ { "id": "F1", "description": "NSOpenPanel + app-scoped security-scoped bookmarks", "advantages": ["least privilege", "persists across launches"], "disadvantages": ["must handle resolution failure"], "eliminatedBy": [] } ],
+      "selectionCriteria": [ { "criterion": "least privilege", "priority": "must" }, { "criterion": "persists across launches", "priority": "high" } ],
+      "chosenOptionId": "F1", "recommendedOptionId": null,
+      "rationale": "experiment EV-2 confirmed bookmarks re-resolve across relaunch; scope stays limited to user-selected folders",
+      "rejectedOptions": [], "tracesTo": ["CAP-001"], "evidenceRefs": ["EV-1", "EV-2"], "confidence": "high",
+      "consequences": ["must re-prompt if a bookmark fails to resolve"], "fallback": "re-prompt for folder", "verificationPlan": "VER-002"
+    },
+    {
+      "id": "ARCH-DEC-SAFE-1", "phase": "reliabilityVerification", "question": "how to make renaming safe?",
+      "status": "decided", "authority": "inherited", "engineeringRisk": "medium", "reversibility": "easy",
+      "hardConstraints": ["renaming is destructive", "preview before apply", "undo mandatory"],
+      "options": [ { "id": "S1", "description": "explicit Apply gate + conflict detection + undo stack", "advantages": ["safe by default"], "disadvantages": [], "eliminatedBy": [] }, { "id": "S2", "description": "rename on keystroke", "advantages": ["fewer clicks"], "disadvantages": ["destructive, unrecoverable"], "eliminatedBy": ["hard constraint: preview before apply"] } ],
+      "selectionCriteria": [ { "criterion": "reversible and conflict-safe", "priority": "must" } ],
+      "chosenOptionId": "S1", "recommendedOptionId": null,
+      "rationale": "safety is the market standard for a destructive file operation",
+      "rejectedOptions": [ { "optionId": "S2", "reason": "destructive and unrecoverable" } ],
+      "tracesTo": ["REQ-002", "REQ-003"], "evidenceRefs": [], "confidence": "high",
+      "consequences": ["Apply is a distinct, gated action"], "fallback": null, "verificationPlan": "VER-002, VER-003"
+    }
+  ],
+  "coverageMatrix": [
+    { "requirementId": "REQ-001", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-STACK-1"], "componentIds": ["CMP-UI", "CMP-ENGINE"], "capabilityIds": [], "verificationIds": ["VER-001"], "coverage": "complete" },
+    { "requirementId": "REQ-002", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-SAFE-1"], "componentIds": ["CMP-UNDO", "CMP-FILES"], "capabilityIds": ["ARCH-CAP-1"], "verificationIds": ["VER-002"], "coverage": "complete" },
+    { "requirementId": "REQ-003", "journeyIds": ["JRN-001"], "decisionIds": ["ARCH-DEC-SAFE-1"], "componentIds": ["CMP-ENGINE"], "capabilityIds": [], "verificationIds": ["VER-003"], "coverage": "complete" }
+  ],
+  "assumptions": ["the user runs macOS 12 or later"],
+  "risks": ["a valid-but-unintended rename (recoverable via undo)"],
+  "openConfirmations": [],
+  "environmentPrerequisites": [
+    { "id": "ENV-1", "prerequisite": "Xcode + Swift toolchain", "affects": "build", "detectionMethod": "xcodebuild -version", "fallback": null, "blocking": true },
+    { "id": "ENV-2", "prerequisite": "Developer ID + notarization credentials", "affects": "release", "detectionMethod": "security find-identity -v -p codesigning", "fallback": "ad-hoc signing for local run only", "blocking": false }
+  ],
+  "handoff": {
+    "buildMustImplement": ["live preview", "conflict detection", "full undo", "security-scoped file access"],
+    "buildMustPreserve": ["preview before apply", "full undo", "conflict detection", "user-selected file scope only", "offline-only"],
+    "buildMustNotDo": ["no file deletion", "no network", "no broad file access"],
+    "buildMayDecide": ["rule engine internals", "table view decomposition", "exact undo data structure"],
+    "stopConditions": ["any requirement implies deleting files", "any requirement implies a network call", "broad file access requested"],
+    "expectedArtifacts": ["FileRenamer.app", "test suite"],
+    "requiredVerificationEvidence": ["screenshot of live preview", "automated assertion for undo and conflict blocking"]
+  },
+  "changeLog": ["rev1: initial architecture"]
+}
