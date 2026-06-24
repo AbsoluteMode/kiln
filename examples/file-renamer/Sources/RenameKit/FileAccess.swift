@@ -30,4 +30,23 @@ public enum FileAccess {
             return RenameOperation(from: file.url, to: to)
         }
     }
+
+    /// Apply moves on disk; return the inverse ops for undo. Rolls back on failure.
+    @discardableResult
+    public static func apply(_ ops: [RenameOperation]) throws -> [RenameOperation] {
+        let fm = FileManager.default
+        var inverse: [RenameOperation] = []
+        do {
+            for op in ops {
+                try fm.moveItem(at: op.from, to: op.to)
+                inverse.append(RenameOperation(from: op.to, to: op.from))
+            }
+        } catch {
+            for inv in inverse.reversed() { try? fm.moveItem(at: inv.from, to: inv.to) }
+            log.error("apply failed, rolled back \(inverse.count, privacy: .public) op(s)")
+            throw RenameError.ioFailure(String(describing: error))
+        }
+        log.info("applied \(ops.count, privacy: .public) rename(s)")
+        return inverse
+    }
 }
