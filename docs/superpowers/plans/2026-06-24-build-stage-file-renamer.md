@@ -710,7 +710,7 @@ git commit -m "feat(file-renamer): real .app bundle + ad-hoc sign + launch-smoke
 
 **Interfaces:**
 - Consumes: the kiln CLI (`npm run kiln -- digest`, `npm run kiln -- check`) from the repo root.
-- Produces: a real `kiln-dev.json` (`status: ready_for_validation`) that passes the seam.
+- Produces: a real `kiln-dev.json` (`status: ready_for_release`) that passes the seam.
 
 - [ ] **Step 1: Capture real test evidence + the pins**
 
@@ -730,7 +730,7 @@ Expected: tests pass; digests print (`sha256:63e815d1c2f332de63764f57254c3bb98b8
 {
   "schemaVersion": "1.0",
   "devRevision": 1,
-  "status": "ready_for_validation",
+  "status": "ready_for_release",
   "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:63e815d1c2f332de63764f57254c3bb98b8a808c07def80bb6a4a350407b8bb3" },
   "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:f892103062882cbed87292da6a71e18853a556cdbaf2f227d8c3ff5281d5ff13" },
   "codexStatus": "off",

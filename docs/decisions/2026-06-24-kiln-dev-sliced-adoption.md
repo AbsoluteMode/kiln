@@ -6,7 +6,7 @@
 ## Решение
 Принимаем **срезами, schema-first**, а не прозой целиком. **Slice 1** = v2-контракт `kiln-dev.json` (`src/core/dev/report.ts`) + то, что исполняемый гейт `kiln check` проверяет уже сегодня из JSON-артефактов (резолв ID, MUST-покрытие, пины intent+arch по SHA-256, дисциплина статусов). Конкретные решения:
 - **ID-семейства оставили `ARCH-DEC-*`/`IF-*`** (предложенные `ADR-*`/`IFC-*` не вводим).
-- **dev останавливается на `ready_for_validation`** — `ready_for_user` принадлежит validate-стадии; dev не поглощает validate/release.
+- **dev останавливается на `ready_for_release`** (release candidate) — статус `released` присваивает только release-стадия; dev не делает внешнее продвижение.
 - **Build-артефактную машинерию отложили** (verification/log-catalog/artifact-manifest/trace.jsonl, нотаризация/санитайзеры/dSYM/Gatekeeper/accessibility/perf) — env-gated прозой, пока нет стадии, делающей реальный `.app`.
 
 ## Почему

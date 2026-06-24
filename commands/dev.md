@@ -43,7 +43,7 @@ Pin the inputs: run `npm run kiln -- digest kiln-spec.json` and `npm run kiln --
 {
   "schemaVersion": "1.0",
   "devRevision": 1,
-  "status": "ready_for_validation",   // or a blocking status; never "ready_for_user" — that is validate's call
+  "status": "ready_for_release",   // a release candidate, or a blocking status; only kiln:release emits "released"
   "sourceSpec": { "schemaVersion": "1.0", "specRevision": 0, "contentDigest": "sha256:..." },
   "sourceArch": { "schemaVersion": "1.0", "archRevision": 0, "contentDigest": "sha256:..." },
   "codexStatus": "off|consulted|unavailable",
@@ -64,7 +64,7 @@ Pin the inputs: run `npm run kiln -- digest kiln-spec.json` and `npm run kiln --
 
 Stay in lane: `implementationUnits` reference **real** arch ids (`CMP-*`/`IF-*`/`VER-*`) and intent ids (`REQ-*`/`JRN-*`/`AT-*`/`CAP-*`) — never invent an id, and never an architecture- or intent-significant change (route those to `kiln:arch` / `kiln:start` as `architectureIssues` / `intentIssues`).
 
-Gate: `status` is `"ready_for_validation"` **only** when every implementation unit is `implemented`, every `verificationResults` entry is `pass`, no defect is open, no intent/architecture/environment issue remains, the review verdict is `pass`, and both pins are non-null. Enforce it: `npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json` must exit 0 — every arch `VER-*` has a result, every MUST requirement is implemented by a unit, every observability mechanism is wired, both digests match. Then hand off to **validate**, which owns `ready_for_user`.
+Gate: `status` is `"ready_for_release"` **only** when every implementation unit is `implemented`, every `verificationResults` entry is `pass`, no defect is open, no intent/architecture/environment issue remains, the review verdict is `pass`, and both pins are non-null. Enforce it: `npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json` must exit 0 — every arch `VER-*` has a result, every MUST requirement is implemented by a unit, every observability mechanism is wired, both digests match. The output is a **release candidate**; hand off to **`kiln:release`**, which alone emits `released`.
 
 Then a short, **human-language** recap: what was built, that all N tests pass with evidence, what's logged, the review verdict, and any open risks.
 

@@ -186,7 +186,7 @@ export function validateArchAgainstIntent(arch: ArchSpec, intent: IntentContract
  * A build report is only valid against the architecture it was built from: every
  * implementation unit must target real arch components/interfaces/verifications,
  * every declared observability mechanism must be implemented, the arch must be
- * pinned, and (when ready_for_validation) every arch verification must have a result.
+ * pinned, and (when ready_for_release) every arch verification must have a result.
  */
 export function validateDevAgainstArch(dev: DevReport, arch: ArchSpec): SeamViolation[] {
   const violations: SeamViolation[] = [];
@@ -224,7 +224,7 @@ export function validateDevAgainstArch(dev: DevReport, arch: ArchSpec): SeamViol
     violations.push({ code: 'arch_revision_mismatch', message: `sourceArch.archRevision ${dev.sourceArch.archRevision} != arch.archRevision ${arch.archRevision}` });
   }
 
-  if (dev.status === 'ready_for_validation') {
+  if (dev.status === 'ready_for_release') {
     const resulted = new Set(dev.verificationResults.map((v) => v.verificationId));
     for (const v of arch.reliability.verificationMatrix) {
       if (!resulted.has(v.id)) {
@@ -232,7 +232,7 @@ export function validateDevAgainstArch(dev: DevReport, arch: ArchSpec): SeamViol
       }
     }
     if (dev.sourceArch.contentDigest === null) {
-      violations.push({ code: 'missing_arch_digest', message: 'ready_for_validation requires a non-null sourceArch.contentDigest' });
+      violations.push({ code: 'missing_arch_digest', message: 'ready_for_release requires a non-null sourceArch.contentDigest' });
     } else if (dev.sourceArch.contentDigest !== digestArch(arch)) {
       violations.push({ code: 'arch_digest_mismatch', message: 'sourceArch.contentDigest does not match the provided architecture' });
     }
@@ -243,7 +243,7 @@ export function validateDevAgainstArch(dev: DevReport, arch: ArchSpec): SeamViol
 
 /**
  * A build report must also trace to the intent it ultimately serves: every
- * implementation unit traces to a real intent id, and (when ready_for_validation)
+ * implementation unit traces to a real intent id, and (when ready_for_release)
  * every MUST requirement is implemented and the intent is pinned.
  */
 export function validateDevAgainstIntent(dev: DevReport, intent: IntentContract): SeamViolation[] {
@@ -269,7 +269,7 @@ export function validateDevAgainstIntent(dev: DevReport, intent: IntentContract)
     }
   }
 
-  if (dev.status === 'ready_for_validation') {
+  if (dev.status === 'ready_for_release') {
     const tracedRequirementIds = new Set(dev.implementationUnits.flatMap((u) => u.tracesTo));
     for (const id of mustRequirementIds) {
       if (!tracedRequirementIds.has(id)) {
@@ -280,7 +280,7 @@ export function validateDevAgainstIntent(dev: DevReport, intent: IntentContract)
       violations.push({ code: 'spec_revision_mismatch', message: `sourceSpec.specRevision ${dev.sourceSpec.specRevision} != intent.specRevision ${intent.specRevision}` });
     }
     if (dev.sourceSpec.contentDigest === null) {
-      violations.push({ code: 'missing_spec_digest', message: 'ready_for_validation requires a non-null sourceSpec.contentDigest' });
+      violations.push({ code: 'missing_spec_digest', message: 'ready_for_release requires a non-null sourceSpec.contentDigest' });
     } else if (dev.sourceSpec.contentDigest !== digestIntent(intent)) {
       violations.push({ code: 'spec_digest_mismatch', message: 'sourceSpec.contentDigest does not match the provided intent contract' });
     }

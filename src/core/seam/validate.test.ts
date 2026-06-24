@@ -104,7 +104,7 @@ describe('cross-stage seam: dev ↔ arch', () => {
     expect(v.some((x) => x.code === 'arch_digest_mismatch')).toBe(true);
   });
 
-  it('flags a ready_for_validation build that skipped an architecture verification', () => {
+  it('flags a ready_for_release build that skipped an architecture verification', () => {
     const dev = devOf('breathing-timer');
     dev.verificationResults = dev.verificationResults.filter((v) => v.verificationId !== 'VER-003');
     const v = validateDevAgainstArch(dev, archOf('breathing-timer'));

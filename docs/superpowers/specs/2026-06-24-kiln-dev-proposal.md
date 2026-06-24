@@ -3,7 +3,7 @@
 > **Status: SUPERSEDED by sliced adoption (2026-06-24).** Evaluated by Claude + Codex → verdict **slice-it**.
 > This file is the full **north-star vision**, NOT the live contract. It still uses the proposal's original
 > `ADR-*`/`IFC-*` ids and `ready_for_user`/artifact-manifest outputs — **the adopted contracts differ**: we kept
-> `ARCH-DEC-*`/`IF-*`, the dev stage stops at `ready_for_validation` (validate owns `ready_for_user`), and all
+> `ARCH-DEC-*`/`IF-*`, the dev stage stops at `ready_for_release` (only kiln:release emits `released`), and all
 > build-artifact machinery is deferred until a real build stage exists. Source of truth = `src/core/` +
 > `commands/dev.md`; the decision = `docs/decisions/2026-06-24-kiln-dev-sliced-adoption.md`.
 

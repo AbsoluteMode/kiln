@@ -15,8 +15,8 @@ function loadDev(name: string): DevReport {
 }
 
 describe('kiln:dev v2 build reports', () => {
-  it('both examples validate as ready_for_validation', () => {
-    for (const name of NAMES) expect(loadDev(name).status).toBe('ready_for_validation');
+  it('both examples validate as ready_for_release', () => {
+    for (const name of NAMES) expect(loadDev(name).status).toBe('ready_for_release');
   });
 
   it('pins both the intent and the architecture by digest', () => {
@@ -44,19 +44,19 @@ describe('kiln:dev v2 build reports', () => {
     }
   });
 
-  it('rejects ready_for_validation with a partially implemented unit', () => {
+  it('rejects ready_for_release with a partially implemented unit', () => {
     const raw = loadRaw('breathing-timer');
     raw.implementationUnits[0].status = 'partial';
     expect(() => parseDevReport(raw)).toThrow();
   });
 
-  it('rejects ready_for_validation with an open defect', () => {
+  it('rejects ready_for_release with an open defect', () => {
     const raw = loadRaw('breathing-timer');
     raw.defects.push({ id: 'BUG-001', severity: 'high', status: 'open', summary: 'flaky cue timing' });
     expect(() => parseDevReport(raw)).toThrow();
   });
 
-  it('rejects ready_for_validation with a hollow architecture pin', () => {
+  it('rejects ready_for_release with a hollow architecture pin', () => {
     const raw = loadRaw('breathing-timer');
     raw.sourceArch.contentDigest = null;
     expect(() => parseDevReport(raw)).toThrow();
@@ -68,7 +68,7 @@ describe('kiln:dev v2 build reports', () => {
     expect(() => parseDevReport(raw)).toThrow();
   });
 
-  it('rejects ready_for_validation with an unresolved external-blocker defect', () => {
+  it('rejects ready_for_release with an unresolved external-blocker defect', () => {
     const raw = loadRaw('breathing-timer');
     raw.defects.push({ id: 'BUG-002', severity: 'medium', status: 'external_blocker', summary: 'blocked on upstream API' });
     expect(() => parseDevReport(raw)).toThrow();

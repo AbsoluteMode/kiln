@@ -6,10 +6,10 @@ import { z } from 'zod';
  *
  * The dev stage implements the architecture, traces every implementation unit
  * back to real arch components and intent requirements, runs the architecture's
- * verifications, and hands a `ready_for_validation` artifact to the validate
- * stage. It does NOT absorb validate/release (notarization, signing, sanitizers,
- * artifact manifests) — those land with a real build stage. Statuses here stop at
- * `ready_for_validation`, never `ready_for_user`.
+ * verifications, and hands a `ready_for_release` release candidate to the
+ * release stage. It does NOT perform external promotion (signing finalization,
+ * notarization, upload, submission, publication) — that is kiln:release's job.
+ * Statuses here stop at `ready_for_release`; only kiln:release emits `released`.
  */
 export const devStatus = z.enum([
   'invalid_input',
@@ -17,7 +17,7 @@ export const devStatus = z.enum([
   'blocked_on_architecture',
   'blocked_on_environment',
   'implementation_failed',
-  'ready_for_validation',
+  'ready_for_release',
 ]);
 export type DevStatus = z.infer<typeof devStatus>;
 
@@ -93,38 +93,38 @@ export const devReportSchema = z
       seen.add(u.id);
     }
 
-    // The dev ready gate: ready_for_validation demands a complete, defect-free,
+    // The dev ready gate: ready_for_release demands a complete, defect-free,
     // pinned, fully-verified hand-off. (Cross-stage ID/coverage checks live in the seam.)
-    if (d.status === 'ready_for_validation') {
+    if (d.status === 'ready_for_release') {
       if (d.implementationUnits.length === 0) {
-        ctx.addIssue({ code: 'custom', message: 'ready_for_validation requires at least one implementation unit' });
+        ctx.addIssue({ code: 'custom', message: 'ready_for_release requires at least one implementation unit' });
       }
       for (const u of d.implementationUnits) {
         if (u.status !== 'implemented') {
-          ctx.addIssue({ code: 'custom', message: `ready_for_validation: implementation unit ${u.id} is ${u.status}` });
+          ctx.addIssue({ code: 'custom', message: `ready_for_release: implementation unit ${u.id} is ${u.status}` });
         }
       }
       for (const v of d.verificationResults) {
         if (v.result !== 'pass') {
-          ctx.addIssue({ code: 'custom', message: `ready_for_validation: verification ${v.verificationId} is ${v.result}` });
+          ctx.addIssue({ code: 'custom', message: `ready_for_release: verification ${v.verificationId} is ${v.result}` });
         }
       }
       for (const bug of d.defects) {
         if (bug.status === 'open' || bug.status === 'reproduced' || bug.status === 'external_blocker') {
-          ctx.addIssue({ code: 'custom', message: `ready_for_validation: defect ${bug.id} is still ${bug.status}` });
+          ctx.addIssue({ code: 'custom', message: `ready_for_release: defect ${bug.id} is still ${bug.status}` });
         }
       }
       if (d.intentIssues.length || d.architectureIssues.length || d.environmentIssues.length) {
-        ctx.addIssue({ code: 'custom', message: 'ready_for_validation: unresolved intent/architecture/environment issues remain' });
+        ctx.addIssue({ code: 'custom', message: 'ready_for_release: unresolved intent/architecture/environment issues remain' });
       }
       if (d.review.verdict !== 'pass') {
-        ctx.addIssue({ code: 'custom', message: 'ready_for_validation: review verdict is not pass' });
+        ctx.addIssue({ code: 'custom', message: 'ready_for_release: review verdict is not pass' });
       }
       if (d.sourceSpec.contentDigest === null) {
-        ctx.addIssue({ code: 'custom', message: 'ready_for_validation: sourceSpec.contentDigest must pin the intent' });
+        ctx.addIssue({ code: 'custom', message: 'ready_for_release: sourceSpec.contentDigest must pin the intent' });
       }
       if (d.sourceArch.contentDigest === null) {
-        ctx.addIssue({ code: 'custom', message: 'ready_for_validation: sourceArch.contentDigest must pin the architecture' });
+        ctx.addIssue({ code: 'custom', message: 'ready_for_release: sourceArch.contentDigest must pin the architecture' });
       }
     }
   });

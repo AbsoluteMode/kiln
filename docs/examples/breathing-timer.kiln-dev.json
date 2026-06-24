@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "devRevision": 1,
-  "status": "ready_for_validation",
+  "status": "ready_for_release",
   "sourceSpec": { "schemaVersion": "1.0", "specRevision": 1, "contentDigest": "sha256:c761f61c8d828ff0b41c5fbc0d6be8a29ed965e15449db69cab005cbebaa0d5c" },
   "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:5710110740980135080c816437110a135488f47cc8aa90cffa2c4568ddbbd951" },
   "codexStatus": "off",

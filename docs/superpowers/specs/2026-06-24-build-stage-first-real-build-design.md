@@ -74,7 +74,7 @@ examples/file-renamer/
 - `implementationUnits` — реальные пути (`Sources/RenameKit/RenameEngine.swift` …), трассировка на реальные `CMP-*`/`IF-*` (arch) и `REQ-*`/`JRN-*`/`CAP-*` (intent), `verificationIds` → `VER-*`.
 - `verificationResults` — из реального вывода `swift test` (pass/fail), `evidenceRefs` → пути к сохранённому логу теста.
 - `sourceSpec`/`sourceArch` — пины через `npm run kiln -- digest` (совпадают с копиями spec/arch).
-- `status: ready_for_validation` если всё зелёное.
+- `status: ready_for_release` если всё зелёное.
 - **`npm run kiln -- check examples/file-renamer/{kiln-spec,kiln-arch,kiln-dev}.json` → exit 0 на РЕАЛЬНЫХ артефактах.** Это кульминация.
 
 ## Соответствие arch (нюанс для прозрачности)
@@ -93,7 +93,7 @@ XCUITest/UI-журней, accessibility, санитайзеры (ASan/TSan/UBSan
 1. `examples/file-renamer/` собирается (`xcodebuild`/`swift build`) без ошибок и варнингов.
 2. `swift test` — зелёный на 3 MUST с реальными доказательствами (лог сохранён).
 3. `FileRenamer.app` собран и проходит launch-smoke.
-4. Реальный `examples/file-renamer/kiln-dev.json`, `status: ready_for_validation`.
+4. Реальный `examples/file-renamer/kiln-dev.json`, `status: ready_for_release`.
 5. `npm run kiln -- check examples/file-renamer/{spec,arch,dev}` → exit 0 на реальных артефактах.
 6. `npm test` (vitest) и `tsc` всё ещё зелёные (плагин не сломан).
 7. Всё закоммичено; README showcase на месте.
