@@ -1,0 +1,286 @@
+{
+  "schemaVersion": "1.0",
+  "archRevision": 1,
+  "status": "ready_for_build",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 2, "contentDigest": "sha256:48a9185b6f4476808e4776f135b7d2e1b28b82de1fb0d8e3b4ea7224b5a1bffb" },
+  "codexStatus": "off",
+  "architectureSummary": "A single macOS .app (Swift Package: TranslatorKit library + SwiftUI/AppKit app). System audio is captured (ScreenCaptureKit) and streamed through a swappable TranslationEngine protocol (primary: a unified realtime speech-translation provider over a raw WebSocket; fakes for tests) that emits Russian transcript deltas; a session state machine wires capture -> engine -> a floating non-activating subtitle panel, with reconnect/backoff. Keys are bring-your-own, stored in the Keychain; no keys are embedded. The pipeline is verifiable with fakes (no keys); real providers light up the live smoke. Patterns are de-risked against an internal reference app.",
+  "platform": {
+    "artifactTypes": ["macOS .app bundle"],
+    "language": "Swift",
+    "runtime": "macOS native (AppKit + SwiftUI)",
+    "uiFrameworks": ["SwiftUI", "AppKit (NSPanel overlay + Settings window)"],
+    "minimumMacOS": "13.0",
+    "processTopology": "single app process; audio capture + WebSocket streaming on a background serial queue; UI and session state on the main actor",
+    "buildSystem": "Swift Package Manager"
+  },
+  "system": {
+    "components": [
+      { "id": "CMP-CAPTURE", "responsibility": "capture system audio output and emit PCM frames", "owns": ["ScreenCaptureKit capture", "Screen Recording permission handling"] },
+      { "id": "CMP-ENGINE", "responsibility": "the TranslationEngine seam: English audio in -> Russian transcript deltas out, behind a protocol with fake and real provider implementations", "owns": ["TranslationEngine protocol", "real provider WebSocket client", "FakeTranslationEngine", "reconnect/backoff"] },
+      { "id": "CMP-SESSION", "responsibility": "session orchestrator + state machine wiring capture -> engine -> subtitles; start/stop; latency budget; reconnect coordination", "owns": ["session lifecycle", "subtitle state", "state machine"] },
+      { "id": "CMP-OVERLAY", "responsibility": "floating non-activating subtitle window that renders Russian lines over any app", "owns": ["subtitle rendering", "overlay window behavior"] },
+      { "id": "CMP-SETTINGS", "responsibility": "Settings UI: bring-your-own-key entry, provider selection, and the no-key guidance state", "owns": ["BYOK entry UI", "provider selection", "no-key state"] },
+      { "id": "CMP-KEYS", "responsibility": "secure key persistence behind a KeyStore protocol (Keychain + dev file fallback)", "owns": ["API key storage"] },
+      { "id": "CMP-APP", "responsibility": "app shell: lifecycle, main menu, window management, wiring", "owns": ["app lifecycle", "main menu", "window management"] }
+    ],
+    "interfaces": [
+      { "id": "IF-1", "from": "CMP-CAPTURE", "to": "CMP-SESSION", "contract": "AsyncStream of PCM audio frames (format documented; system audio only)" },
+      { "id": "IF-2", "from": "CMP-SESSION", "to": "CMP-ENGINE", "contract": "TranslationEngine: feed(audioFrames) -> AsyncStream<RussianTranscriptDelta>" },
+      { "id": "IF-3", "from": "CMP-SESSION", "to": "CMP-OVERLAY", "contract": "subtitle line updates (append/replace current line)" },
+      { "id": "IF-4", "from": "CMP-SETTINGS", "to": "CMP-KEYS", "contract": "KeyStore: save/read/delete the user's provider key" },
+      { "id": "IF-5", "from": "CMP-ENGINE", "to": "CMP-KEYS", "contract": "KeyStore.read() for provider auth at connect time" },
+      { "id": "IF-6", "from": "CMP-APP", "to": "CMP-SESSION", "contract": "start()/stop() session commands" }
+    ],
+    "processes": ["main app process only"],
+    "dependencyRules": [
+      "CMP-CAPTURE, CMP-ENGINE, CMP-KEYS never import the UI/app layer (no reverse dependencies)",
+      "CMP-ENGINE depends only on the TranslationEngine protocol, never on a concrete provider type elsewhere",
+      "secrets never cross into logging or UI as plaintext"
+    ]
+  },
+  "ux": {
+    "surfaces": ["floating subtitle window", "menu bar / main menu", "Settings window", "no-key empty state"],
+    "journeyFlows": [
+      { "journeyId": "JRN-001", "flow": ["open app", "(key present) start session", "grant Screen Recording on first run", "play English video", "read Russian subtitles in the floating window", "stop"] },
+      { "journeyId": "JRN-002", "flow": ["start session before/at the call", "remote English audio (system output) is captured", "transcribed + translated", "read Russian subtitles", "mic/own voice never captured", "stop -> subtitles clear"] }
+    ],
+    "stateModel": ["idle", "no_key (guidance)", "connecting", "listening (subtitles streaming)", "reconnecting", "stopped_or_error"],
+    "commandModel": ["Start session", "Stop session", "Open Settings", "Quit"],
+    "accessibilityPlan": ["subtitle text legible (size/contrast/opacity) in light and dark, over any background", "main menu present", "VoiceOver deferred (ambient display)"]
+  },
+  "data": {
+    "entities": ["TranscriptSegment (ephemeral, in-memory)", "ProviderSelection (which engine/provider)", "ApiKeyRef (stored in Keychain)"],
+    "invariants": ["audio and transcripts are never written to disk", "API keys live only in the Keychain", "no key is ever embedded in the bundle"],
+    "persistence": "only provider selection (UserDefaults) and the API key (Keychain) persist; audio and transcripts are in-memory and session-only",
+    "migrations": [],
+    "lifecycle": ["transcripts exist only during a live session and are discarded on stop"],
+    "concurrency": "capture + WebSocket on a background serial queue; UI/state on the main actor; a bounded buffer decouples capture from the engine",
+    "recovery": "on engine/network drop the session enters reconnecting and resumes; nothing is persisted to recover"
+  },
+  "capabilities": [
+    { "id": "CAPB-001", "capabilityNeedId": "CAP-001", "mechanism": "ScreenCaptureKit SCStream with capturesAudio (system audio); CoreAudio process-tap is the proven fallback (a reference app)", "owningComponent": "CMP-CAPTURE", "availability": "macOS 13+ with Screen Recording permission", "fallback": "CoreAudio process tap (macOS 14.2+, proven in a reference app)", "failureBehavior": "permission denied -> show guidance to grant Screen Recording; never crash; never fall back to the microphone" },
+    { "id": "CAPB-002", "capabilityNeedId": "CAP-002", "mechanism": "URLSessionWebSocketTask streaming to the configured provider with reconnect/backoff/ping (a reference app LinearWebSocketTransport pattern)", "owningComponent": "CMP-ENGINE", "availability": "requires network + a provider key", "fallback": "reconnecting state on transient drop; clear offline error", "failureBehavior": "exponential backoff reconnect; bad key -> 'check your key' state; never crash" },
+    { "id": "CAPB-003", "capabilityNeedId": "CAP-003", "mechanism": "Security framework SecItem (Keychain) behind a KeyStore protocol; dev file-backed fallback for unsigned builds (a reference app KeychainStore pattern)", "owningComponent": "CMP-KEYS", "availability": "always", "fallback": "in-memory for the session if the Keychain is unavailable", "failureBehavior": "surface a clear error; never log the key" }
+  ],
+  "integrations": {
+    "networkPlan": "outbound WebSocket/HTTPS to exactly one configured provider endpoint; no other egress; providers configured for zero retention",
+    "externalServices": ["OpenAI GPT-Realtime-Translate (primary)", "Google Gemini 3.5 Live Translate (alternative)", "Deepgram Nova-3 + LLM/DeepL (alternative pipeline)"]
+  },
+  "security": {
+    "threatModel": {
+      "assets": ["the user's provider API keys", "private call/video audio", "transcripts"],
+      "trustBoundaries": ["app <-> cloud provider (audio leaves the device)", "app <-> Keychain", "app <-> system audio (Screen Recording permission)"],
+      "abuseCases": ["key extraction from the bundle", "key leakage via logs", "audio/transcripts persisted or sent to an unintended endpoint", "capturing the microphone instead of system audio"],
+      "mitigations": ["no embedded keys — Keychain only", "never log keys/audio/transcripts", "single pinned provider endpoint", "capture system audio only, never the mic", "zero-retention provider configuration"],
+      "residualRisks": ["audio is processed by a third-party cloud provider (accepted, quality-first)", "provider-side retention depends on correct configuration"]
+    },
+    "effectivePermissionManifest": {
+      "entitlements": ["com.apple.security.network.client"],
+      "tccUsageDescriptions": ["Screen Recording permission (system audio capture via ScreenCaptureKit)"],
+      "sandboxAccess": [],
+      "keychainAccess": ["the app's own keychain service for provider API keys"],
+      "appGroups": [],
+      "appleEvents": [],
+      "hardenedRuntime": true,
+      "runtimeExceptions": [],
+      "privacyManifestPlan": "declare network use; no tracking; the app itself collects no data (audio is sent to the user-configured provider, not to us)"
+    },
+    "loggingPolicy": "os_log subsystem com.kiln.realtimetranslator; log session state transitions and error categories only; never log API keys, raw audio, or transcript text",
+    "secretPolicy": "API keys only in the Keychain (or Doppler for the owner's local dev); never in source, bundle, UserDefaults, or logs"
+  },
+  "reliability": {
+    "failureModel": ["network drop mid-session", "provider auth failure (bad/expired key)", "no key configured", "Screen Recording permission denied", "audio device change / stream interruption", "provider rate limit or error"],
+    "recovery": ["reconnect with exponential backoff + ping keepalive (a reference app pattern)", "bad key -> 'check your key' state", "no key -> guidance state, no cloud call", "permission denied -> guidance to grant", "device change -> restart capture with backoff"],
+    "observability": ["os_log subsystem com.kiln.realtimetranslator: session lifecycle, connection state, reconnect attempts, error categories (never payloads)"],
+    "qualityBudgets": ["end-to-end subtitle latency target ~1-3s (near-real-time)", "reconnect within a few seconds of a transient drop"],
+    "verificationMatrix": [
+      { "id": "VER-001", "acceptanceTestId": "AT-001", "level": "integration", "harness": "swift test with a synthetic audio frame source feeding the pipeline; integration smoke with real capture", "preconditions": ["a session is started"], "execution": "feed frames (synthetic in unit; a real clip in the smoke) and assert they reach the pipeline", "oracle": ["the pipeline receives non-zero audio frames"], "requiredEvidence": ["automated_assertion", "integration_smoke"], "environment": ["macOS 13+"], "flakinessControls": ["synthetic source in unit tests removes device variance"] },
+      { "id": "VER-002", "acceptanceTestId": "AT-002", "level": "unit", "harness": "swift test with a FakeTranslationEngine emitting a known Russian transcript", "preconditions": [], "execution": "feed a known English utterance; assert the Russian line renders within the latency budget", "oracle": ["the known Russian line appears as a subtitle within budget"], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": ["deterministic fake engine"] },
+      { "id": "VER-003", "acceptanceTestId": "AT-003", "level": "manual_audit", "harness": "live smoke against a real provider with the owner's key on a sample English clip", "preconditions": ["a provider key in Doppler", "network"], "execution": "play a sample English clip; the user reviews the Russian subtitles", "oracle": ["subtitles are accurate enough to follow the meaning (user review)"], "requiredEvidence": ["live_smoke", "sample_translation_review"], "environment": ["macOS 13+", "network", "provider key"], "flakinessControls": ["fixed sample clip for repeatable review"] },
+      { "id": "VER-004", "acceptanceTestId": "AT-004", "level": "unit", "harness": "session state-machine test + UI smoke", "preconditions": [], "execution": "start then stop a session", "oracle": ["start -> listening", "stop -> idle and subtitles cleared"], "requiredEvidence": ["automated_assertion", "ui_smoke"], "environment": [], "flakinessControls": ["state machine tested in isolation"] },
+      { "id": "VER-005", "acceptanceTestId": "AT-005", "level": "unit", "harness": "session test with a fake engine that drops then recovers the connection", "preconditions": ["an active session"], "execution": "simulate a drop and recovery", "oracle": ["state enters reconnecting then resumes", "subsequent deltas render", "no crash"], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": ["injected fake transport, no real network"] },
+      { "id": "VER-006", "acceptanceTestId": "AT-006", "level": "unit", "harness": "KeyStore round-trip test (file-backed fallback in CI) + UI smoke for the no-key state", "preconditions": [], "execution": "store a key, read it back; then clear and assert the no-key guidance + no cloud call", "oracle": ["stored key reads back", "no key -> guidance state and no cloud call"], "requiredEvidence": ["automated_assertion", "ui_smoke"], "environment": [], "flakinessControls": ["file-backed KeyStore in CI avoids Keychain prompts"] }
+    ]
+  },
+  "build": {
+    "project": "Swift Package: RealtimeTranslator (TranslatorKit library + RealtimeTranslator executable + TranslatorKitTests)",
+    "targets": ["TranslatorKit (capture, TranslationEngine protocol + fakes, session, KeyStore)", "RealtimeTranslator (SwiftUI/AppKit app)", "TranslatorKitTests"],
+    "configurations": ["debug", "release"],
+    "commands": ["swift build", "swift test", "scripts/build-app.sh (assemble .app + ad-hoc sign)"],
+    "packaging": "manual .app bundle (Contents/MacOS + Info.plist + entitlements), as in calculator/file-renamer",
+    "signing": "ad-hoc (codesign --force --sign -) for local; Developer ID + notarization in release Slice 2",
+    "notarization": "deferred to release Slice 2 (xcrun notarytool + stapler); reference: a reference app build-dmg.sh",
+    "ci": [],
+    "releaseArtifacts": ["RealtimeTranslator.app (ad-hoc, local)"],
+    "reproducibility": "pinned Swift tools and (zero) third-party deps; deterministic swift build"
+  },
+  "dependencies": [],
+  "evidence": [
+    { "id": "EV-1", "type": "apple_primary_doc", "title": "ScreenCaptureKit captures system audio (SCStreamConfiguration.capturesAudio), macOS 13+, 48kHz/stereo", "source": "https://developer.apple.com/documentation/screencapturekit/scstreamconfiguration/capturesaudio", "accessedAt": null, "versionOrDate": "macOS 13+", "supports": ["CAPB-001", "REQ-001", "DEC-CAPTURE"] },
+    { "id": "EV-2", "type": "agent_inference", "title": "a reference app CoreAudioSystemAudioSource.swift proves system audio capture works on this Mac (AudioHardwareCreateProcessTap + aggregate device)", "source": "an internal reference app", "accessedAt": null, "versionOrDate": "macOS 14.2+", "supports": ["CAPB-001", "DEC-CAPTURE"] },
+    { "id": "EV-3", "type": "agent_inference", "title": "a reference app LinearWebSocketTransport.swift: production reconnect + backoff + ping WebSocket pattern", "source": "an internal reference app", "accessedAt": null, "versionOrDate": null, "supports": ["CAPB-002", "REQ-006", "DEC-SESSION"] },
+    { "id": "EV-4", "type": "agent_inference", "title": "a reference app KeychainStore.swift: SecItem Keychain storage + dev file fallback behind a TokenStore protocol", "source": "an internal reference app", "accessedAt": null, "versionOrDate": null, "supports": ["CAPB-003", "REQ-007", "DEC-KEYS"] },
+    { "id": "EV-5", "type": "agent_inference", "title": "a reference app FloatingDotPanel.swift: non-activating always-on-top NSPanel (.statusBar level) with click-through hosting", "source": "an internal reference app", "accessedAt": null, "versionOrDate": null, "supports": ["REQ-004", "DEC-OVERLAY"] },
+    { "id": "EV-6", "type": "dependency_doc", "title": "2026 unified realtime speech-translation (OpenAI GPT-Realtime-Translate / Gemini 3.5 Live Translate): audio in -> translated transcript out in one streaming hop", "source": "https://developers.openai.com/api/docs/guides/realtime-translation", "accessedAt": null, "versionOrDate": "2026", "supports": ["REQ-002", "REQ-003", "DEC-ENGINE", "DEC-ENGINE-SEAM"] },
+    { "id": "EV-7", "type": "agent_inference", "title": "a reference app Package.swift: Swift Package, macOS deployment floor, Swift 5 language mode — same build approach", "source": "an internal reference app", "accessedAt": null, "versionOrDate": "Swift 6 tools / Swift 5 mode", "supports": ["DEC-BUILD"] }
+  ],
+  "decisionLog": [
+    {
+      "id": "DEC-CAPTURE", "phase": "integrationsCapabilities", "question": "How to capture system audio?", "status": "decided", "authority": "inherited", "engineeringRisk": "medium", "reversibility": "moderate",
+      "hardConstraints": ["no third-party install for the default path", "system audio only, never the microphone"],
+      "options": [
+        { "id": "OPT-SCK", "description": "ScreenCaptureKit SCStream with capturesAudio", "advantages": ["native", "no install", "macOS 13+ floor"], "disadvantages": ["requires Screen Recording permission", "system-audio path can be finicky on some OS versions"], "eliminatedBy": [] },
+        { "id": "OPT-COREAUDIO", "description": "CoreAudio process tap + aggregate device", "advantages": ["proven in a reference app", "low-level control"], "disadvantages": ["macOS 14.2+ floor", "more complex API"], "eliminatedBy": [] },
+        { "id": "OPT-BLACKHOLE", "description": "BlackHole virtual audio driver", "advantages": ["bulletproof routing"], "disadvantages": ["user must install + configure a Multi-Output Device"], "eliminatedBy": ["no third-party install for the default path"] }
+      ],
+      "selectionCriteria": [ { "criterion": "no third-party install", "priority": "must" }, { "criterion": "captures system audio", "priority": "must" }, { "criterion": "low deployment floor", "priority": "medium" } ],
+      "chosenOptionId": "OPT-SCK", "recommendedOptionId": "OPT-SCK",
+      "rationale": "The user chose ScreenCaptureKit; it is native, needs no install, and has the lowest deployment floor (13.0). CoreAudio process tap is the proven fallback (a reference app ships it) if the SCK audio path proves unreliable.",
+      "rejectedOptions": [ { "optionId": "OPT-BLACKHOLE", "reason": "requires the user to install and configure a virtual audio device" } ],
+      "tracesTo": ["REQ-001", "CAP-001", "JRN-001", "JRN-002"], "evidenceRefs": ["EV-1", "EV-2"], "confidence": "high",
+      "consequences": ["a Screen Recording permission prompt on first run"], "fallback": "CoreAudio process tap (macOS 14.2+, proven in a reference app)", "verificationPlan": "integration smoke: a known clip -> non-zero frames reach the pipeline"
+    },
+    {
+      "id": "DEC-ENGINE", "phase": "integrationsCapabilities", "question": "Which translation engine, given the user's stated QUALITY priority?", "status": "decided", "authority": "delegated", "engineeringRisk": "medium", "reversibility": "moderate",
+      "hardConstraints": ["high-quality EN->RU is the stated priority", "near-real-time"],
+      "options": [
+        { "id": "OPT-UNIFIED", "description": "Unified realtime speech-translation model (OpenAI GPT-Realtime-Translate / Gemini 3.5 Live Translate): audio in -> Russian transcript out in one hop", "advantages": ["lowest latency (one hop)", "frontier-model quality", "transcript deltas built in"], "disadvantages": ["newest (market moving fast)", "provider-specific WebSocket shapes"], "eliminatedBy": [] },
+        { "id": "OPT-PIPELINE", "description": "Deepgram Nova-3 streaming ASR -> an LLM (GPT-4o/Claude) or DeepL translator", "advantages": ["control over each stage", "swappable parts"], "disadvantages": ["two hops = more latency", "must assemble sentence-boundary logic"], "eliminatedBy": [] },
+        { "id": "OPT-ONDEVICE", "description": "Apple SpeechAnalyzer (on-device ASR) + Apple Translation (on-device EN->RU)", "advantages": ["no keys", "private", "offline"], "disadvantages": ["quality below cloud today for nuanced EN->RU"], "eliminatedBy": ["high-quality EN->RU is the stated priority"] }
+      ],
+      "selectionCriteria": [ { "criterion": "translation quality (stated priority)", "priority": "must" }, { "criterion": "latency", "priority": "high" }, { "criterion": "simplicity", "priority": "medium" } ],
+      "chosenOptionId": "OPT-UNIFIED", "recommendedOptionId": "OPT-UNIFIED",
+      "rationale": "The stated priority is quality, so the default follows it (not agent convenience). 2026 research: unified realtime models ship interpreter-grade single-model streaming with the lowest latency and built-in transcript deltas. The pipeline is the documented alternative; on-device is the future no-key path. All sit behind the engine protocol, so swapping is cheap.",
+      "rejectedOptions": [ { "optionId": "OPT-ONDEVICE", "reason": "on-device EN->RU quality is below cloud today; kept as a future private path" } ],
+      "tracesTo": ["REQ-002", "REQ-003", "REQ-010", "CAP-002"], "evidenceRefs": ["EV-6"], "confidence": "high",
+      "consequences": ["requires a provider key + network for live use"], "fallback": "Deepgram Nova-3 + LLM/DeepL pipeline (same protocol)", "verificationPlan": "live smoke on a sample clip with the owner's key; quality reviewed by the user"
+    },
+    {
+      "id": "DEC-ENGINE-SEAM", "phase": "platformTopology", "question": "Hardwire one provider, or abstract behind a protocol?", "status": "decided", "authority": "delegated", "engineeringRisk": "low", "reversibility": "easy",
+      "hardConstraints": ["the engine must be swappable"],
+      "options": [
+        { "id": "OPT-PROTOCOL", "description": "A TranslationEngine protocol (audio in -> Russian deltas out) with fake + real impls", "advantages": ["swap providers as the market moves", "fakes make the pipeline testable without keys"], "disadvantages": ["a thin abstraction layer to maintain"], "eliminatedBy": [] },
+        { "id": "OPT-HARDWIRE", "description": "Call one provider SDK directly throughout", "advantages": ["slightly less code"], "disadvantages": ["locked to one fast-moving vendor", "untestable without keys"], "eliminatedBy": ["the engine must be swappable"] }
+      ],
+      "selectionCriteria": [ { "criterion": "swappability", "priority": "must" }, { "criterion": "testability without keys", "priority": "must" } ],
+      "chosenOptionId": "OPT-PROTOCOL", "recommendedOptionId": "OPT-PROTOCOL",
+      "rationale": "The 2026 provider market is moving fast (Gemini 3.5 Live shipped weeks ago); a protocol seam lets the app track it and makes the whole pipeline verifiable with a deterministic fake engine, no keys required.",
+      "rejectedOptions": [ { "optionId": "OPT-HARDWIRE", "reason": "vendor lock-in and untestable without live keys" } ],
+      "tracesTo": ["REQ-002", "REQ-003", "REQ-005"], "evidenceRefs": ["EV-6"], "confidence": "high",
+      "consequences": ["one protocol + a fake to maintain"], "fallback": null, "verificationPlan": "unit tests run entirely on the fake engine"
+    },
+    {
+      "id": "DEC-OVERLAY", "phase": "ux", "question": "How to render always-on-top subtitles over any app?", "status": "decided", "authority": "delegated", "engineeringRisk": "low", "reversibility": "easy",
+      "hardConstraints": ["always-on-top", "does not steal focus", "legible over any background"],
+      "options": [
+        { "id": "OPT-NSPANEL", "description": "Non-activating borderless NSPanel at .statusBar level with click-through hosting (a reference app FloatingDotPanel)", "advantages": ["proven", "never steals focus", "floats above other apps"], "disadvantages": ["AppKit interop with SwiftUI content"], "eliminatedBy": [] },
+        { "id": "OPT-SWIFTUI-WINDOW", "description": "A plain SwiftUI window", "advantages": ["simpler"], "disadvantages": ["activates/steals focus", "harder to keep above full-screen apps"], "eliminatedBy": ["does not steal focus"] }
+      ],
+      "selectionCriteria": [ { "criterion": "never steals focus", "priority": "must" }, { "criterion": "floats above other apps", "priority": "must" }, { "criterion": "legibility", "priority": "high" } ],
+      "chosenOptionId": "OPT-NSPANEL", "recommendedOptionId": "OPT-NSPANEL",
+      "rationale": "a reference app's FloatingDotPanel is a proven non-activating always-on-top panel with click-through; directly adaptable to a subtitle HUD.",
+      "rejectedOptions": [ { "optionId": "OPT-SWIFTUI-WINDOW", "reason": "a plain window activates and steals focus" } ],
+      "tracesTo": ["REQ-004", "REQ-009", "JRN-001", "JRN-002"], "evidenceRefs": ["EV-5"], "confidence": "high",
+      "consequences": ["a small AppKit<->SwiftUI hosting layer"], "fallback": null, "verificationPlan": "ui smoke: subtitle line renders in the floating panel"
+    },
+    {
+      "id": "DEC-SESSION", "phase": "reliabilityVerification", "question": "How to structure session lifecycle and resilience?", "status": "decided", "authority": "delegated", "engineeringRisk": "medium", "reversibility": "moderate",
+      "hardConstraints": ["never crash on a drop", "reconnect", "start/stop clears subtitles"],
+      "options": [
+        { "id": "OPT-STATEMACHINE", "description": "An explicit session state machine (idle/connecting/listening/reconnecting/stopped) with exponential backoff + ping (a reference app pattern)", "advantages": ["testable", "predictable recovery"], "disadvantages": ["more upfront structure"], "eliminatedBy": [] },
+        { "id": "OPT-ADHOC", "description": "Ad-hoc flags and callbacks", "advantages": ["less code"], "disadvantages": ["hard to test", "fragile recovery"], "eliminatedBy": ["never crash on a drop"] }
+      ],
+      "selectionCriteria": [ { "criterion": "testable recovery", "priority": "must" }, { "criterion": "never crash", "priority": "must" } ],
+      "chosenOptionId": "OPT-STATEMACHINE", "recommendedOptionId": "OPT-STATEMACHINE",
+      "rationale": "An explicit state machine makes reconnect verifiable with a fake transport and mirrors a reference app's production reconnect/backoff/ping.",
+      "rejectedOptions": [ { "optionId": "OPT-ADHOC", "reason": "untestable, fragile recovery" } ],
+      "tracesTo": ["REQ-005", "REQ-006", "JRN-001", "JRN-002"], "evidenceRefs": ["EV-3"], "confidence": "high",
+      "consequences": ["a session state machine to maintain"], "fallback": null, "verificationPlan": "unit test: inject a fake transport that drops then recovers"
+    },
+    {
+      "id": "DEC-KEYS", "phase": "securityPrivacy", "question": "Where to store the user's API key (BYOK)?", "status": "decided", "authority": "inherited", "engineeringRisk": "medium", "reversibility": "easy",
+      "hardConstraints": ["no embedded keys", "keys never in logs or plaintext storage"],
+      "options": [
+        { "id": "OPT-KEYCHAIN", "description": "Keychain via a KeyStore protocol + dev file fallback (a reference app KeychainStore)", "advantages": ["secure", "proven", "testable via the file fallback"], "disadvantages": ["Keychain prompts on unsigned builds (handled by the fallback)"], "eliminatedBy": [] },
+        { "id": "OPT-USERDEFAULTS", "description": "Store the key in UserDefaults/plist", "advantages": ["trivial"], "disadvantages": ["insecure plaintext"], "eliminatedBy": ["keys never in plaintext storage"] },
+        { "id": "OPT-EMBED", "description": "Embed a key in the bundle", "advantages": ["zero setup"], "disadvantages": ["trivially extracted -> account drain"], "eliminatedBy": ["no embedded keys"] }
+      ],
+      "selectionCriteria": [ { "criterion": "no embedded keys", "priority": "must" }, { "criterion": "secure at rest", "priority": "must" }, { "criterion": "testable in CI", "priority": "high" } ],
+      "chosenOptionId": "OPT-KEYCHAIN", "recommendedOptionId": "OPT-KEYCHAIN",
+      "rationale": "BYOK is confirmed by the request; the Keychain (with a reference app's dev file fallback) is the secure, proven, CI-testable choice. Embedding keys is forbidden — a client bundle is trivially unpacked.",
+      "rejectedOptions": [ { "optionId": "OPT-USERDEFAULTS", "reason": "plaintext at rest" }, { "optionId": "OPT-EMBED", "reason": "keys extracted from the bundle -> account drain" } ],
+      "tracesTo": ["REQ-007", "CAP-003"], "evidenceRefs": ["EV-4"], "confidence": "high",
+      "consequences": ["a KeyStore protocol with two impls (Keychain + dev file)"], "fallback": "in-memory key for the session if the Keychain is unavailable", "verificationPlan": "unit: KeyStore round-trip on the file-backed fallback"
+    },
+    {
+      "id": "DEC-NETWORK", "phase": "securityPrivacy", "question": "What egress and retention posture?", "status": "decided", "authority": "inherited", "engineeringRisk": "medium", "reversibility": "easy",
+      "hardConstraints": ["single provider endpoint", "zero retention", "no other egress"],
+      "options": [
+        { "id": "OPT-PINNED", "description": "Egress only to the one configured provider endpoint; configure zero retention", "advantages": ["minimal attack surface", "privacy posture"], "disadvantages": ["per-provider retention config to verify"], "eliminatedBy": [] }
+      ],
+      "selectionCriteria": [ { "criterion": "minimal egress", "priority": "must" }, { "criterion": "zero retention", "priority": "high" } ],
+      "chosenOptionId": "OPT-PINNED", "recommendedOptionId": "OPT-PINNED",
+      "rationale": "Audio is sensitive; egress is restricted to the single user-configured provider and providers are configured for zero retention.",
+      "rejectedOptions": [],
+      "tracesTo": ["CAP-002", "REQ-006"], "evidenceRefs": ["EV-6"], "confidence": "medium",
+      "consequences": ["verify each provider's no-retention setting (U1)"], "fallback": null, "verificationPlan": "manual audit of the provider's retention configuration"
+    },
+    {
+      "id": "DEC-PERMISSION", "phase": "securityPrivacy", "question": "Which capture permission, and explicitly not the microphone?", "status": "decided", "authority": "inherited", "engineeringRisk": "medium", "reversibility": "moderate",
+      "hardConstraints": ["system audio only", "never the microphone"],
+      "options": [
+        { "id": "OPT-SCREENREC", "description": "Request Screen Recording permission (for ScreenCaptureKit system audio); never request the microphone", "advantages": ["matches the system-audio capture", "no mic = the user's own voice is never captured"], "disadvantages": ["the app appears as 'recording the screen'"], "eliminatedBy": [] }
+      ],
+      "selectionCriteria": [ { "criterion": "captures system audio", "priority": "must" }, { "criterion": "never the microphone", "priority": "must" } ],
+      "chosenOptionId": "OPT-SCREENREC", "recommendedOptionId": "OPT-SCREENREC",
+      "rationale": "CAP-001 is confirmed by the request (the user explicitly wants system audio); the app requests only Screen Recording and never the microphone, so the user's own voice is structurally out of scope.",
+      "rejectedOptions": [],
+      "tracesTo": ["CAP-001", "REQ-001"], "evidenceRefs": ["EV-1"], "confidence": "high",
+      "consequences": ["a Screen Recording TCC prompt; the app shows as a screen recorder"], "fallback": null, "verificationPlan": "manual: confirm no microphone entitlement/usage is requested"
+    },
+    {
+      "id": "DEC-BUILD", "phase": "buildRelease", "question": "How to build and package for Slice 1?", "status": "decided", "authority": "delegated", "engineeringRisk": "low", "reversibility": "easy",
+      "hardConstraints": ["verifiable without keys", "reuse the calculator/file-renamer build approach"],
+      "options": [
+        { "id": "OPT-SPM-ADHOC", "description": "Swift Package + manual .app bundle + ad-hoc sign (Slice 1); Developer ID + notarization deferred to release Slice 2", "advantages": ["proven in calculator/file-renamer", "no external infra"], "disadvantages": ["not distributable to others until Slice 2"], "eliminatedBy": [] }
+      ],
+      "selectionCriteria": [ { "criterion": "proven approach", "priority": "must" }, { "criterion": "no external infra", "priority": "high" } ],
+      "chosenOptionId": "OPT-SPM-ADHOC", "recommendedOptionId": "OPT-SPM-ADHOC",
+      "rationale": "Same Swift Package + manual bundle + ad-hoc sign used for the prior Kiln examples; Developer ID/notarization is release Slice 2.",
+      "rejectedOptions": [],
+      "tracesTo": ["REQ-007"], "evidenceRefs": ["EV-7"], "confidence": "high",
+      "consequences": ["ad-hoc build runs locally; distribution to others needs Slice 2"], "fallback": null, "verificationPlan": "swift build -c release + launch smoke"
+    }
+  ],
+  "coverageMatrix": [
+    { "requirementId": "REQ-001", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-CAPTURE", "DEC-PERMISSION"], "componentIds": ["CMP-CAPTURE"], "capabilityIds": ["CAPB-001"], "verificationIds": ["VER-001"], "coverage": "complete" },
+    { "requirementId": "REQ-002", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-ENGINE", "DEC-ENGINE-SEAM"], "componentIds": ["CMP-ENGINE", "CMP-SESSION"], "capabilityIds": ["CAPB-002"], "verificationIds": ["VER-002"], "coverage": "complete" },
+    { "requirementId": "REQ-003", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-ENGINE"], "componentIds": ["CMP-ENGINE"], "capabilityIds": ["CAPB-002"], "verificationIds": ["VER-003"], "coverage": "complete" },
+    { "requirementId": "REQ-004", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-OVERLAY"], "componentIds": ["CMP-OVERLAY", "CMP-SESSION"], "capabilityIds": [], "verificationIds": ["VER-002"], "coverage": "complete" },
+    { "requirementId": "REQ-005", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-SESSION", "DEC-ENGINE-SEAM"], "componentIds": ["CMP-SESSION", "CMP-APP"], "capabilityIds": [], "verificationIds": ["VER-004"], "coverage": "complete" },
+    { "requirementId": "REQ-006", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-SESSION"], "componentIds": ["CMP-SESSION", "CMP-ENGINE"], "capabilityIds": ["CAPB-002"], "verificationIds": ["VER-005"], "coverage": "complete" },
+    { "requirementId": "REQ-007", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-KEYS"], "componentIds": ["CMP-KEYS", "CMP-SETTINGS"], "capabilityIds": ["CAPB-003"], "verificationIds": ["VER-006"], "coverage": "complete" },
+    { "requirementId": "REQ-008", "journeyIds": ["JRN-001"], "decisionIds": ["DEC-KEYS"], "componentIds": ["CMP-SETTINGS"], "capabilityIds": ["CAPB-003"], "verificationIds": ["VER-006"], "coverage": "complete" },
+    { "requirementId": "REQ-009", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-OVERLAY"], "componentIds": ["CMP-OVERLAY"], "capabilityIds": [], "verificationIds": ["VER-002"], "coverage": "complete" },
+    { "requirementId": "REQ-010", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-ENGINE"], "componentIds": ["CMP-ENGINE", "CMP-SESSION"], "capabilityIds": ["CAPB-002"], "verificationIds": ["VER-002"], "coverage": "complete" }
+  ],
+  "assumptions": ["the owner has at least one provider API key for the live smoke", "the user's Mac is macOS 13+", "in a video call the remote participant's audio plays through the system output (so it is captured as system audio)"],
+  "risks": ["provider API/pricing changes (mitigated by the protocol seam)", "ScreenCaptureKit under App Sandbox is constrained — direct distribution with hardened runtime; full sandbox deferred", "live-smoke quality depends on the chosen provider"],
+  "openConfirmations": [],
+  "environmentPrerequisites": [
+    { "id": "EP-1", "prerequisite": "Swift toolchain (swift build/test)", "affects": "build", "detectionMethod": "swift --version", "fallback": null, "blocking": true },
+    { "id": "EP-2", "prerequisite": "a provider API key in Doppler for the live smoke", "affects": "test", "detectionMethod": "Doppler/env lookup of the provider key", "fallback": "run only the fake-engine tests (no live smoke)", "blocking": false },
+    { "id": "EP-3", "prerequisite": "Screen Recording permission granted", "affects": "test", "detectionMethod": "ScreenCaptureKit permission check", "fallback": "skip the capture integration smoke; unit tests still run", "blocking": false }
+  ],
+  "handoff": {
+    "buildMustImplement": ["TranslationEngine protocol + a deterministic FakeTranslationEngine + at least one real provider impl behind it", "system audio capture (ScreenCaptureKit)", "session state machine (idle/connecting/listening/reconnecting/stopped) with reconnect/backoff", "floating non-activating subtitle NSPanel", "BYOK Settings + KeyStore (Keychain + dev file fallback) + no-key guidance state", "os_log observability for session/connection/errors"],
+    "buildMustPreserve": ["high-quality EN->RU is the point", "the engine sits behind a swappable protocol", "capture system audio only — never the microphone", "near-real-time", "never crash on a stream/network drop — reconnect", "bring-your-own-key with Keychain storage and NO embedded keys", "providers configured for zero retention"],
+    "buildMustNotDo": ["never embed API keys", "never capture the microphone", "never log keys/audio/transcripts", "never persist audio/transcripts", "no Russian->English", "no telemetry"],
+    "buildMayDecide": ["the concrete primary provider for the live smoke + exact WebSocket message shapes", "subtitle styling", "VAD/chunking details", "the app display name"],
+    "stopConditions": ["any requirement needs the user's own microphone or voice", "any requirement adds Russian->English", "any requirement persists call audio/transcripts without explicit consent", "any plan embeds API keys in the bundle or source", "translation quality falls below the live-smoke bar"],
+    "expectedArtifacts": ["RealtimeTranslator.app (ad-hoc, local)", "kiln-dev.json (ready_for_release)", "kiln-artifact-manifest.json"],
+    "requiredVerificationEvidence": ["swift test green on the fake-engine pipeline + KeyStore round-trip + session reconnect", "integration smoke: real capture -> non-zero frames", "live smoke (owner keys) for quality — user-reviewed"]
+  },
+  "changeLog": ["rev1: architecture from kiln-spec rev2 — engine protocol seam (unified realtime primary), system-audio capture (ScreenCaptureKit), session state machine, floating subtitle panel, BYOK Keychain; de-risked against an internal reference app; ready_for_build"]
+}

@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "devRevision": 1,
+  "status": "blocked_on_environment",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 2, "contentDigest": "sha256:48a9185b6f4476808e4776f135b7d2e1b28b82de1fb0d8e3b4ea7224b5a1bffb" },
+  "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:2438cb4a435c832488c6326cec7efdaab86bc058dd65c39e4d8bb9972b309ee9" },
+  "codexStatus": "off",
+  "implementationUnits": [
+    {
+      "id": "IMP-CAPTURE",
+      "componentId": "CMP-CAPTURE",
+      "interfaceIds": ["IF-1"],
+      "tracesTo": ["REQ-001"],
+      "files": [{ "path": "Sources/RealtimeTranslator/SystemAudioSource.swift", "symbols": ["SystemAudioSource"] }],
+      "verificationIds": ["VER-001"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-ENGINE",
+      "componentId": "CMP-ENGINE",
+      "interfaceIds": ["IF-2", "IF-5"],
+      "tracesTo": ["REQ-002", "REQ-003"],
+      "files": [
+        { "path": "Sources/TranslatorKit/TranslationEngine.swift", "symbols": ["TranslationEngine", "TranslationEvent", "FakeTranslationEngine"] },
+        { "path": "Sources/RealtimeTranslator/RealtimeProviderEngine.swift", "symbols": ["RealtimeProviderEngine"] }
+      ],
+      "verificationIds": ["VER-002", "VER-003"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-SESSION",
+      "componentId": "CMP-SESSION",
+      "interfaceIds": ["IF-1", "IF-2", "IF-3", "IF-6"],
+      "tracesTo": ["REQ-005", "REQ-006", "REQ-010"],
+      "files": [{ "path": "Sources/TranslatorKit/Session.swift", "symbols": ["SessionReducer", "SessionRunner", "SessionState", "SessionSnapshot"] }],
+      "verificationIds": ["VER-004", "VER-005"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-OVERLAY",
+      "componentId": "CMP-OVERLAY",
+      "interfaceIds": ["IF-3"],
+      "tracesTo": ["REQ-004", "REQ-009"],
+      "files": [
+        { "path": "Sources/RealtimeTranslator/SubtitleView.swift", "symbols": ["SubtitleView"] },
+        { "path": "Sources/RealtimeTranslator/AppDelegate.swift", "symbols": ["AppDelegate"] }
+      ],
+      "verificationIds": [],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-KEYS",
+      "componentId": "CMP-KEYS",
+      "interfaceIds": ["IF-4", "IF-5"],
+      "tracesTo": ["REQ-007"],
+      "files": [{ "path": "Sources/TranslatorKit/KeyStore.swift", "symbols": ["KeyStore", "KeychainKeyStore", "FileKeyStore", "InMemoryKeyStore"] }],
+      "verificationIds": ["VER-006"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-SETTINGS",
+      "componentId": "CMP-SETTINGS",
+      "interfaceIds": ["IF-4"],
+      "tracesTo": ["REQ-007", "REQ-008"],
+      "files": [
+        { "path": "Sources/RealtimeTranslator/SettingsView.swift", "symbols": ["SettingsView"] },
+        { "path": "Sources/RealtimeTranslator/TranslatorViewModel.swift", "symbols": ["TranslatorViewModel"] }
+      ],
+      "verificationIds": ["VER-006"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-APP",
+      "componentId": "CMP-APP",
+      "interfaceIds": ["IF-6"],
+      "tracesTo": ["JRN-001", "JRN-002"],
+      "files": [
+        { "path": "Sources/RealtimeTranslator/App.swift", "symbols": ["RealtimeTranslatorApp"] },
+        { "path": "Sources/RealtimeTranslator/Menus.swift", "symbols": ["MenuContent"] }
+      ],
+      "verificationIds": [],
+      "status": "implemented"
+    }
+  ],
+  "verificationResults": [
+    { "verificationId": "VER-001", "result": "pass", "evidenceRefs": ["swift test: testPipelineDeliversFramesAndRussianLine — synthetic frames reached the pipeline (non-zero)"] },
+    { "verificationId": "VER-002", "result": "pass", "evidenceRefs": ["swift test: testPipelineDeliversFramesAndRussianLine + testReducerRendersRussianLine — Russian line rendered"] },
+    { "verificationId": "VER-003", "result": "skip", "evidenceRefs": ["live smoke NOT run — requires the owner's provider API key via Doppler; subjective translation quality cannot be machine-asserted (see environmentIssues)"] },
+    { "verificationId": "VER-004", "result": "pass", "evidenceRefs": ["swift test: testReducerStopClearsSubtitle — stop clears subtitles"] },
+    { "verificationId": "VER-005", "result": "pass", "evidenceRefs": ["swift test: testReconnectResumesWithoutCrashing — reconnect resumes, no crash"] },
+    { "verificationId": "VER-006", "result": "pass", "evidenceRefs": ["swift test: testFileKeyStoreRoundTrip — BYOK key store/read/delete"] }
+  ],
+  "loggingImplemented": ["os_log subsystem com.kiln.realtimetranslator: session lifecycle, connection state, reconnect attempts, error categories (never payloads)"],
+  "defects": [],
+  "intentIssues": [],
+  "architectureIssues": [],
+  "environmentIssues": [
+    "VER-003 (translation-quality live smoke, REQ-003) requires the owner's provider API key via Doppler (EP-2). It is not available in this run, so the candidate cannot honestly reach ready_for_release. The automated pipeline (VER-001/002/004/005/006) passes; only the subjective live-quality check is pending the key."
+  ],
+  "review": {
+    "reviewer": "self",
+    "verdict": "pass",
+    "notes": [
+      "TranslatorKit core: 5/5 swift tests pass (pipeline, reconnect, start/stop, BYOK keystore) — no keys required",
+      "the app builds (swift build -c release) and passes launch-smoke as a menu-bar agent",
+      "engine sits behind the TranslationEngine protocol (fake for tests, real OpenAI Realtime WebSocket impl wired); capture behind AudioSource (ScreenCaptureKit); keys behind KeyStore (Keychain + dev file fallback)",
+      "os_log observability implemented (subsystem com.kiln.realtimetranslator) — never logs keys, audio, or transcripts",
+      "capture is system-audio only — no microphone entitlement or usage requested",
+      "honest gate: VER-003 quality is a live smoke needing the owner's key, so dev is blocked_on_environment, not ready_for_release — the trust layer refuses to rubber-stamp unverified quality"
+    ]
+  },
+  "openRisks": [
+    "the real provider event shapes and audio encoding are validated only in the live smoke (with keys)",
+    "the ScreenCaptureKit system-audio path needs Screen Recording permission granted at runtime"
+  ],
+  "changeLog": [
+    "rev1: implemented from kiln-arch rev1 — TranslatorKit core (5/5 tests) + app shell + real capture/provider/keystore behind protocols; blocked_on_environment pending the VER-003 quality live smoke (owner key)"
+  ]
+}

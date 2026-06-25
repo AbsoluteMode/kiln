@@ -4,7 +4,7 @@
 
 **Goal:** Generate the file-renamer macOS app as a Swift Package from its arch contract, prove the 3 MUST acceptance tests with real `swift test`, build + launch-smoke a real `.app`, emit a real `kiln-dev.json`, and `kiln check` green on the real artifacts.
 
-**Architecture:** Pure Swift Package (validated by `/Users/maxim/sidekey`): a `RenameKit` library (deterministic core — preview/conflict/undo/file-ops), a `FileRenamer` SwiftUI executable, and a `RenameKitTests` test target. The `.app` is assembled manually from the SPM binary and ad-hoc signed.
+**Architecture:** Pure Swift Package (validated by `an internal reference app`): a `RenameKit` library (deterministic core — preview/conflict/undo/file-ops), a `FileRenamer` SwiftUI executable, and a `RenameKitTests` test target. The `.app` is assembled manually from the SPM binary and ad-hoc signed.
 
 **Tech Stack:** Swift 6.0 toolchain (language mode v5), SwiftUI/AppKit, XCTest, `os.Logger`. No external dependencies.
 
@@ -714,7 +714,7 @@ git commit -m "feat(file-renamer): real .app bundle + ad-hoc sign + launch-smoke
 
 - [ ] **Step 1: Capture real test evidence + the pins**
 
-Run (from repo root `/Users/maxim/eye`):
+Run (from repo root `~/eye`):
 ```bash
 mkdir -p examples/file-renamer/build
 (cd examples/file-renamer && swift test 2>&1 | tee build/test.log | tail -3)

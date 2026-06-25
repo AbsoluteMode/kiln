@@ -1,36 +1,72 @@
-# Kiln
+<div align="center">
 
-> A Claude Code plugin that writes high-quality macOS services under the hood. Glaze lays on the glaze — Kiln fires it into something you can trust.
+# 🔥 Kiln
 
-Vibe-coding studios solved **generation**. Kiln closes the gap they left open: **trust**. It understands what you want, fires it into a verifiable build spec, then builds it by orchestrating the CLIs you already have — **Claude Code**, and **Codex** when it's installed — proving the result does what you meant and is safe, for people who can't read code.
+**A Claude Code plugin that turns a vague idea into a verified, working macOS app — and machine-checks every step, so you can trust the result even if you can't read code.**
 
-It does **not** write its own generation engine. It orchestrates the harnesses you already have; the value is the **contracts** and the **workflow**.
+</div>
 
-## Pipeline
+Vibe-coding tools solved **generation**. Kiln closes the gap they leave open: **trust**.
 
-1. **`kiln:start`** — *understanding*. Turns a vague request into a verifiable build spec (intent contract) via analog-driven market research, minimum questions, decide-for-me, and provenance gating. ✅ implemented
-2. **build** — generation by orchestrating the user's own `claude` / `codex` CLI against the contract. *(next)*
-3. **validate** — trust gates proving the build matches the contract. *(next)*
+It runs a four-stage pipeline — **understand → architect → build → release** — where every stage emits a strict, versioned **contract**, and a machine gate (`kiln check`) enforces that each stage actually traces back to the one before it. No stage can claim "done" unless the contracts line up, every MUST requirement is covered, and the thing you ship is exactly the thing that was verified.
+
+Kiln does **not** ship its own code-generation engine. It orchestrates the harnesses you already have — **Claude Code**, and **Codex** when installed — and adds the part they lack: the **contracts** and the **seam gate** between them.
+
+## The pipeline
+
+| Stage | Command | Output contract |
+|---|---|---|
+| **Understand** | `kiln:start` | **intent** (`kiln-spec.json`) — researched, traceable, with acceptance tests |
+| **Architect** | `kiln:arch` | **architecture** (`kiln-arch.json`) — decisions + evidence + coverage, pinned to the intent |
+| **Build** | `kiln:dev` | real code + **dev** (`kiln-dev.json`) + an artifact manifest |
+| **Release** | `kiln:release` | **release** (`kiln-release.json`) — the candidate pinned to the exact verified build |
+
+Every stage **pins the previous one by SHA-256 digest**, and `kiln check` validates the cross-stage seam: every `tracesTo` resolves to a real id, every MUST requirement has a complete coverage row, no capability exceeds what the user confirmed, and the released artifact matches the verified build byte-for-byte.
+
+## Examples — built by Kiln, contracts machine-verified
+
+| Example | What it is | Verified |
+|---|---|---|
+| **[calculator](examples/calculator)** | a four-function macOS calculator | `swift test` ✓ · `kiln check` ✓ (5-artifact chain) |
+| **[file-renamer](examples/file-renamer)** | batch file-renamer — live preview, undo, conflict detection | `kiln check` ✓ |
+| **[realtime-translator](examples/realtime-translator)** | **the showcase** — a real-time English→Russian **subtitle app for system audio** (YouTube, video calls) + a global-hotkey quick-translate | `swift test` ✓ · `kiln check` ✓ |
 
 ## Try it
+
+In a project with the plugin installed:
 
 ```
 /kiln:start a menu-bar breathing timer for focus
 ```
 
-Worked examples of the output spec live in [docs/examples](docs/examples).
+Kiln researches comparable apps, asks only the questions that change the outcome, and writes the intent contract. Then `/kiln:arch` → `/kiln:dev` → `/kiln:release`.
+
+## The seam gate (the trust layer)
+
+```bash
+# validate a full chain — exits non-zero on any cross-stage violation
+npm run kiln -- check kiln-spec.json kiln-arch.json kiln-dev.json kiln-artifact-manifest.json kiln-release.json
+
+# print the SHA-256 pin of any contract
+npm run kiln -- digest kiln-spec.json
+```
 
 ## Repo layout
 
-- `commands/` — plugin commands (`kiln:start`)
-- `.claude-plugin/` — plugin manifest
-- `src/core/` — the decision core: intent-contract schema + trust gates (risk tiering, governing principle, provenance), fully unit-tested
-- `docs/` — design spec, research, example specs
+- `commands/` — the four pipeline stages (`kiln:start` · `:arch` · `:dev` · `:release`) + `kiln:pipeline`
+- `src/core/` — the contract schemas (Zod, strict) + the cross-stage **seam validators**
+- `src/cli/` — the `kiln check` / `kiln digest` CLI
+- `examples/` — apps built by Kiln, with their machine-verified contracts
+- `docs/` — design specs, decisions, research
 
 ## Develop
 
-```
+```bash
 npm install
-npm test
+npm test          # 88 unit tests
 npm run typecheck
 ```
+
+## License
+
+[MIT](LICENSE)

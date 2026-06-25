@@ -59,11 +59,11 @@ examples/file-renamer/
 - Бандлим `FileRenamer.app` (`Contents/MacOS/FileRenamer` + `Info.plist`: bundle id, min macOS, `NSPrincipalClass`).
 - Launch-smoke: `open FileRenamer.app`, подтвердить что процесс жив ~2–3с без краша (`pgrep`), затем завершить. Доказывает «запускается без падения»; полная UI-проверка окна — в отложенных UI-тестах. Запуск **ad-hoc/unsigned локально** (нет Developer ID) — на core-logic доказательство не влияет.
 
-## Заземление: sidekey/whytap (проверенные паттерны)
-Реальный прод-апп Максима `/Users/maxim/sidekey` собран **целиком как Swift Package** (нет `.xcodeproj`/xcodegen) — это валидирует наш выбор живым шипящим приложением. Забираем:
+## Заземление: a reference app/a reference app (проверенные паттерны)
+Реальный прод-апп Максима `an internal reference app` собран **целиком как Swift Package** (нет `.xcodeproj`/xcodegen) — это валидирует наш выбор живым шипящим приложением. Забираем:
 - `// swift-tools-version:6.0`, `swiftLanguageModes: [.v5]`, `platforms: [.macOS("12.0")]`.
 - Таргеты: `.target` (RenameKit) + `.executableTarget` (FileRenamer, deps: RenameKit) + `.testTarget` (RenameKitTests, deps: RenameKit). `@main` работает из executable-таргета.
-- **Бандл `.app` вручную** (как `scripts/dev-run.sh`): `swift build -c release` → `--show-bin-path` для бинаря → `mkdir Contents/{MacOS,Resources}` → `cp` бинарь → `Info.plist` (CFBundleIdentifier/Executable/Version/`LSMinimumSystemVersion`) → `codesign --force --sign -` (ad-hoc). **rpath-фиксап НЕ нужен** (он у sidekey только из-за встроенного Sparkle.framework; у нас нет фреймворков).
+- **Бандл `.app` вручную** (как `scripts/dev-run.sh`): `swift build -c release` → `--show-bin-path` для бинаря → `mkdir Contents/{MacOS,Resources}` → `cp` бинарь → `Info.plist` (CFBundleIdentifier/Executable/Version/`LSMinimumSystemVersion`) → `codesign --force --sign -` (ad-hoc). **rpath-фиксап НЕ нужен** (он у a reference app только из-за встроенного Sparkle.framework; у нас нет фреймворков).
 - Entitlements-файл по arch-манифесту (`app-sandbox` + `files.user-selected.read-write` + `bookmarks.app-scope`) кладём как реальный артефакт; launch-smoke гоняем ad-hoc (sandbox не форсится без подписи, на core-logic не влияет).
 - Тесты: `swift test`, `@testable import`, tmp-фикстуры `FileManager.default.temporaryDirectory` + `defer { removeItem }`.
 - Отложенное подтверждено их же сетапом: Developer ID (`UVBKCN5PPV`) + `xcrun notarytool` + `xcrun stapler` — ровно то, что env-gate'им.
