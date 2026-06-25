@@ -5,8 +5,8 @@ YouTube and in video calls — by translating your Mac's **system audio**. Plus 
 **global-hotkey quick-translate** (⌥Q) for when a word slips your mind mid-conversation.
 
 Built by taking a vague idea ("real-time EN→RU translation of system audio") through the
-**whole Kiln pipeline** (`start → arch → dev`), then iterated live into a real,
-daily-use product.
+**whole Kiln pipeline** (`start → arch → dev`) into a real, daily-use product — with the
+contracts kept in sync as the app grew a quick-translate hotkey and launch-at-login.
 
 ## What it does
 
@@ -26,17 +26,21 @@ daily-use product.
 
 | Stage | Contract | Status |
 |---|---|---|
-| `kiln:start` | `kiln-spec.json` (rev2, grounded on 2026 stack research) | `ready` |
-| `kiln:arch` | `kiln-arch.json` — engine behind a swappable `TranslationEngine` protocol | `ready_for_build` · `kiln check` ✓ |
-| `kiln:dev` | `kiln-dev.json` + `kiln-artifact-manifest.json` | `kiln check` ✓ |
+| `kiln:start` | `kiln-spec.json` (rev3, grounded on 2026 stack research) | `ready` |
+| `kiln:arch` | `kiln-arch.json` (rev2) — engine behind a swappable `TranslationEngine` protocol | `ready_for_build` · `kiln check` ✓ |
+| `kiln:dev` | `kiln-dev.json` (rev2) + `kiln-artifact-manifest.json` (rev2) | `ready_for_release` · `kiln check` ✓ |
 
 The architecture is **provider-agnostic** — the engine sits behind a `TranslationEngine`
 protocol with a deterministic fake for tests, so the whole pipeline is verifiable **with no
 API key** (`swift test`, 5/5). Real providers light up the live path.
 
-> **Note:** the `kiln-*.json` contracts capture the initial Kiln-generated dev slice. The
-> app was then iterated live (the realtime engine, quick-translate, app icon, launch-at-login)
-> beyond the contract — see the source for the current implementation.
+The contracts are **kept in sync with the shipped app**: both surfaces — the live subtitles
+and the quick-translate hotkey — plus launch-at-login are traced end to end (requirement →
+journey → decision → component → verification), and `kiln check` holds the four-stage seam
+(`spec → arch → dev → manifest`) at `ready_for_release`. The dev stage reached
+`ready_for_release` only after the one check it could not automate — VER-003, subjective
+translation quality — was run live with a real key and accepted; the gate refuses to
+rubber-stamp quality it hasn't seen.
 
 ## Build & run
 

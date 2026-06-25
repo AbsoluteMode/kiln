@@ -1,10 +1,10 @@
 {
   "schemaVersion": "1.0",
-  "archRevision": 1,
+  "archRevision": 2,
   "status": "ready_for_build",
-  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 2, "contentDigest": "sha256:48a9185b6f4476808e4776f135b7d2e1b28b82de1fb0d8e3b4ea7224b5a1bffb" },
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 3, "contentDigest": "sha256:1e89093ad66a60ed85d647a1e015efd37b18409fd656c5c36e591382f278807d" },
   "codexStatus": "off",
-  "architectureSummary": "A single macOS .app (Swift Package: TranslatorKit library + SwiftUI/AppKit app). System audio is captured (ScreenCaptureKit) and streamed through a swappable TranslationEngine protocol (primary: a unified realtime speech-translation provider over a raw WebSocket; fakes for tests) that emits Russian transcript deltas; a session state machine wires capture -> engine -> a floating non-activating subtitle panel, with reconnect/backoff. Keys are bring-your-own, stored in the Keychain; no keys are embedded. The pipeline is verifiable with fakes (no keys); real providers light up the live smoke. Patterns are de-risked against an internal reference app.",
+  "architectureSummary": "A single macOS .app (Swift Package: TranslatorKit library + SwiftUI/AppKit app). System audio is captured (ScreenCaptureKit) and streamed through a swappable TranslationEngine protocol (primary: a unified realtime speech-translation provider over a raw WebSocket; fakes for tests) that emits Russian transcript deltas; a session state machine wires capture -> engine -> a floating non-activating subtitle panel, with reconnect/backoff. Keys are bring-your-own, stored in the Keychain; no keys are embedded. The pipeline is verifiable with fakes (no keys); real providers light up the live smoke. A second surface — quick-translate — adds a global hotkey (Option-Q) that translates a typed word/phrase via a fast text model (GLM-4.7 on Cerebras, reasoning off) with auto-detected RU/EN direction; the app also registers as a login item (SMAppService) so it survives reboot. Patterns are de-risked against an internal reference app.",
   "platform": {
     "artifactTypes": ["macOS .app bundle"],
     "language": "Swift",
@@ -22,7 +22,8 @@
       { "id": "CMP-OVERLAY", "responsibility": "floating non-activating subtitle window that renders Russian lines over any app", "owns": ["subtitle rendering", "overlay window behavior"] },
       { "id": "CMP-SETTINGS", "responsibility": "Settings UI: bring-your-own-key entry, provider selection, and the no-key guidance state", "owns": ["BYOK entry UI", "provider selection", "no-key state"] },
       { "id": "CMP-KEYS", "responsibility": "secure key persistence behind a KeyStore protocol (Keychain + dev file fallback)", "owns": ["API key storage"] },
-      { "id": "CMP-APP", "responsibility": "app shell: lifecycle, main menu, window management, wiring", "owns": ["app lifecycle", "main menu", "window management"] }
+      { "id": "CMP-APP", "responsibility": "app shell: lifecycle, main menu, window management, wiring, login-item registration (SMAppService), and global quick-translate hotkey wiring", "owns": ["app lifecycle", "main menu", "window management", "login-item registration", "global hotkey wiring"] },
+      { "id": "CMP-QUICKTRANSLATE", "responsibility": "the quick-translate surface: a global hotkey (Option-Q) opens a panel that translates a typed word or phrase via a fast text model, with auto-detected RU/EN direction", "owns": ["global hotkey (Carbon)", "quick-translate panel", "text-translation request"] }
     ],
     "interfaces": [
       { "id": "IF-1", "from": "CMP-CAPTURE", "to": "CMP-SESSION", "contract": "AsyncStream of PCM audio frames (format documented; system audio only)" },
@@ -30,7 +31,9 @@
       { "id": "IF-3", "from": "CMP-SESSION", "to": "CMP-OVERLAY", "contract": "subtitle line updates (append/replace current line)" },
       { "id": "IF-4", "from": "CMP-SETTINGS", "to": "CMP-KEYS", "contract": "KeyStore: save/read/delete the user's provider key" },
       { "id": "IF-5", "from": "CMP-ENGINE", "to": "CMP-KEYS", "contract": "KeyStore.read() for provider auth at connect time" },
-      { "id": "IF-6", "from": "CMP-APP", "to": "CMP-SESSION", "contract": "start()/stop() session commands" }
+      { "id": "IF-6", "from": "CMP-APP", "to": "CMP-SESSION", "contract": "start()/stop() session commands" },
+      { "id": "IF-7", "from": "CMP-APP", "to": "CMP-QUICKTRANSLATE", "contract": "register the global hotkey (Option-Q) and present/dismiss the quick-translate panel" },
+      { "id": "IF-8", "from": "CMP-QUICKTRANSLATE", "to": "CMP-KEYS", "contract": "KeyStore.read(\"openrouter\") for the quick-translate request" }
     ],
     "processes": ["main app process only"],
     "dependencyRules": [
@@ -40,13 +43,14 @@
     ]
   },
   "ux": {
-    "surfaces": ["floating subtitle window", "menu bar / main menu", "Settings window", "no-key empty state"],
+    "surfaces": ["floating subtitle window", "menu bar / main menu", "Settings window", "no-key empty state", "quick-translate panel (Option-Q)"],
     "journeyFlows": [
       { "journeyId": "JRN-001", "flow": ["open app", "(key present) start session", "grant Screen Recording on first run", "play English video", "read Russian subtitles in the floating window", "stop"] },
-      { "journeyId": "JRN-002", "flow": ["start session before/at the call", "remote English audio (system output) is captured", "transcribed + translated", "read Russian subtitles", "mic/own voice never captured", "stop -> subtitles clear"] }
+      { "journeyId": "JRN-002", "flow": ["start session before/at the call", "remote English audio (system output) is captured", "transcribed + translated", "read Russian subtitles", "mic/own voice never captured", "stop -> subtitles clear"] },
+      { "journeyId": "JRN-003", "flow": ["press Option-Q over any app", "type a word or phrase", "direction auto-detected (Cyrillic -> English, else -> Russian)", "read the instant translation", "press Escape to dismiss"] }
     ],
     "stateModel": ["idle", "no_key (guidance)", "connecting", "listening (subtitles streaming)", "reconnecting", "stopped_or_error"],
-    "commandModel": ["Start session", "Stop session", "Open Settings", "Quit"],
+    "commandModel": ["Start session", "Stop session", "Open Settings", "Quit", "Quick translate (Option-Q)"],
     "accessibilityPlan": ["subtitle text legible (size/contrast/opacity) in light and dark, over any background", "main menu present", "VoiceOver deferred (ambient display)"]
   },
   "data": {
@@ -65,7 +69,7 @@
   ],
   "integrations": {
     "networkPlan": "outbound WebSocket/HTTPS to exactly one configured provider endpoint; no other egress; providers configured for zero retention",
-    "externalServices": ["OpenAI GPT-Realtime-Translate (primary)", "Google Gemini 3.5 Live Translate (alternative)", "Deepgram Nova-3 + LLM/DeepL (alternative pipeline)"]
+    "externalServices": ["OpenAI GPT-Realtime-Translate (primary, subtitles)", "Google Gemini 3.5 Live Translate (alternative)", "Deepgram Nova-3 + LLM/DeepL (alternative pipeline)", "OpenRouter -> Cerebras GLM-4.7 (quick-translate)"]
   },
   "security": {
     "threatModel": {
@@ -100,7 +104,9 @@
       { "id": "VER-003", "acceptanceTestId": "AT-003", "level": "manual_audit", "harness": "live smoke against a real provider with the owner's key on a sample English clip", "preconditions": ["a provider key in Doppler", "network"], "execution": "play a sample English clip; the user reviews the Russian subtitles", "oracle": ["subtitles are accurate enough to follow the meaning (user review)"], "requiredEvidence": ["live_smoke", "sample_translation_review"], "environment": ["macOS 13+", "network", "provider key"], "flakinessControls": ["fixed sample clip for repeatable review"] },
       { "id": "VER-004", "acceptanceTestId": "AT-004", "level": "unit", "harness": "session state-machine test + UI smoke", "preconditions": [], "execution": "start then stop a session", "oracle": ["start -> listening", "stop -> idle and subtitles cleared"], "requiredEvidence": ["automated_assertion", "ui_smoke"], "environment": [], "flakinessControls": ["state machine tested in isolation"] },
       { "id": "VER-005", "acceptanceTestId": "AT-005", "level": "unit", "harness": "session test with a fake engine that drops then recovers the connection", "preconditions": ["an active session"], "execution": "simulate a drop and recovery", "oracle": ["state enters reconnecting then resumes", "subsequent deltas render", "no crash"], "requiredEvidence": ["automated_assertion"], "environment": [], "flakinessControls": ["injected fake transport, no real network"] },
-      { "id": "VER-006", "acceptanceTestId": "AT-006", "level": "unit", "harness": "KeyStore round-trip test (file-backed fallback in CI) + UI smoke for the no-key state", "preconditions": [], "execution": "store a key, read it back; then clear and assert the no-key guidance + no cloud call", "oracle": ["stored key reads back", "no key -> guidance state and no cloud call"], "requiredEvidence": ["automated_assertion", "ui_smoke"], "environment": [], "flakinessControls": ["file-backed KeyStore in CI avoids Keychain prompts"] }
+      { "id": "VER-006", "acceptanceTestId": "AT-006", "level": "unit", "harness": "KeyStore round-trip test (file-backed fallback in CI) + UI smoke for the no-key state", "preconditions": [], "execution": "store a key, read it back; then clear and assert the no-key guidance + no cloud call", "oracle": ["stored key reads back", "no key -> guidance state and no cloud call"], "requiredEvidence": ["automated_assertion", "ui_smoke"], "environment": [], "flakinessControls": ["file-backed KeyStore in CI avoids Keychain prompts"] },
+      { "id": "VER-007", "acceptanceTestId": "AT-007", "level": "manual_audit", "harness": "live use of the Option-Q quick-translate with the owner's OpenRouter key on real words/phrases", "preconditions": ["an OpenRouter key in Settings", "network"], "execution": "press Option-Q, type a word/phrase in each direction, submit", "oracle": ["the panel appears over the current app", "a faithful translation in the auto-detected direction returns in well under a second"], "requiredEvidence": ["live_smoke", "ui_smoke"], "environment": ["macOS 13+", "network", "OpenRouter key"], "flakinessControls": ["fixed sample words for a repeatable check"] },
+      { "id": "VER-008", "acceptanceTestId": "AT-008", "level": "manual_audit", "harness": "query SMAppService.mainApp.status after first launch; restart the Mac", "preconditions": ["the app has launched once"], "execution": "read the login-item status and confirm relaunch after a restart", "oracle": ["status is enabled (registered login item)", "the app relaunches automatically after a restart"], "requiredEvidence": ["manual_audit"], "environment": ["macOS 13+"], "flakinessControls": [] }
     ]
   },
   "build": {
@@ -108,11 +114,11 @@
     "targets": ["TranslatorKit (capture, TranslationEngine protocol + fakes, session, KeyStore)", "RealtimeTranslator (SwiftUI/AppKit app)", "TranslatorKitTests"],
     "configurations": ["debug", "release"],
     "commands": ["swift build", "swift test", "scripts/build-app.sh (assemble .app + ad-hoc sign)"],
-    "packaging": "manual .app bundle (Contents/MacOS + Info.plist + entitlements), as in calculator/file-renamer",
-    "signing": "ad-hoc (codesign --force --sign -) for local; Developer ID + notarization in release Slice 2",
+    "packaging": "manual .app bundle (Contents/MacOS + Info.plist + entitlements + Resources/AppIcon.icns), as in calculator/file-renamer",
+    "signing": "stable self-signed identity (codesign --sign \"Sidekey Dev\") so macOS keeps the Screen Recording grant across rebuilds; falls back to ad-hoc when the identity is absent; Developer ID + notarization in release Slice 2",
     "notarization": "deferred to release Slice 2 (xcrun notarytool + stapler); reference: a reference app build-dmg.sh",
     "ci": [],
-    "releaseArtifacts": ["RealtimeTranslator.app (ad-hoc, local)"],
+    "releaseArtifacts": ["RealtimeTranslator.app (self-signed, local; bundles AppIcon)"],
     "reproducibility": "pinned Swift tools and (zero) third-party deps; deterministic swift build"
   },
   "dependencies": [],
@@ -123,7 +129,9 @@
     { "id": "EV-4", "type": "agent_inference", "title": "a reference app KeychainStore.swift: SecItem Keychain storage + dev file fallback behind a TokenStore protocol", "source": "an internal reference app", "accessedAt": null, "versionOrDate": null, "supports": ["CAPB-003", "REQ-007", "DEC-KEYS"] },
     { "id": "EV-5", "type": "agent_inference", "title": "a reference app FloatingDotPanel.swift: non-activating always-on-top NSPanel (.statusBar level) with click-through hosting", "source": "an internal reference app", "accessedAt": null, "versionOrDate": null, "supports": ["REQ-004", "DEC-OVERLAY"] },
     { "id": "EV-6", "type": "dependency_doc", "title": "2026 unified realtime speech-translation (OpenAI GPT-Realtime-Translate / Gemini 3.5 Live Translate): audio in -> translated transcript out in one streaming hop", "source": "https://developers.openai.com/api/docs/guides/realtime-translation", "accessedAt": null, "versionOrDate": "2026", "supports": ["REQ-002", "REQ-003", "DEC-ENGINE", "DEC-ENGINE-SEAM"] },
-    { "id": "EV-7", "type": "agent_inference", "title": "a reference app Package.swift: Swift Package, macOS deployment floor, Swift 5 language mode — same build approach", "source": "an internal reference app", "accessedAt": null, "versionOrDate": "Swift 6 tools / Swift 5 mode", "supports": ["DEC-BUILD"] }
+    { "id": "EV-7", "type": "agent_inference", "title": "a reference app Package.swift: Swift Package, macOS deployment floor, Swift 5 language mode — same build approach", "source": "an internal reference app", "accessedAt": null, "versionOrDate": "Swift 6 tools / Swift 5 mode", "supports": ["DEC-BUILD"] },
+    { "id": "EV-8", "type": "experiment", "title": "Measured warm quick-translate latency: GLM-4.7 on Cerebras with reasoning off ~0.4s vs reasoning on ~6.9s (~7x), ~25x cheaper than a premium model; clean output on real words", "source": "local measurement against OpenRouter (Cerebras provider)", "accessedAt": null, "versionOrDate": "2026-06", "supports": ["DEC-QUICKTRANSLATE", "REQ-011"] },
+    { "id": "EV-9", "type": "apple_primary_doc", "title": "SMAppService (macOS 13+) registers an app as a login item (register/unregister/status) — no helper bundle required", "source": "https://developer.apple.com/documentation/servicemanagement/smappservice", "accessedAt": null, "versionOrDate": "macOS 13+", "supports": ["DEC-LOGINITEM", "REQ-012"] }
   ],
   "decisionLog": [
     {
@@ -251,6 +259,35 @@
       "rejectedOptions": [],
       "tracesTo": ["REQ-007"], "evidenceRefs": ["EV-7"], "confidence": "high",
       "consequences": ["ad-hoc build runs locally; distribution to others needs Slice 2"], "fallback": null, "verificationPlan": "swift build -c release + launch smoke"
+    },
+    {
+      "id": "DEC-QUICKTRANSLATE", "phase": "integrationsCapabilities", "question": "What model/provider powers the quick-translate word/phrase lookup?", "status": "decided", "authority": "inherited", "engineeringRisk": "low", "reversibility": "easy",
+      "hardConstraints": ["instant (well under a second)", "cheap", "good enough for single words/short phrases"],
+      "options": [
+        { "id": "OPT-GLM-CEREBRAS", "description": "GLM-4.7 on Cerebras via OpenRouter with reasoning disabled", "advantages": ["~0.4s warm", "~25x cheaper than a premium model", "clean on real words"], "disadvantages": ["depends on OpenRouter routing to Cerebras"], "eliminatedBy": [] },
+        { "id": "OPT-PREMIUM-LLM", "description": "A premium frontier model (opus-class) for the lookup", "advantages": ["top quality"], "disadvantages": ["~3s and far pricier — overkill for a word lookup"], "eliminatedBy": ["instant (well under a second)", "cheap"] },
+        { "id": "OPT-REASONING-ON", "description": "GLM-4.7 with reasoning enabled", "advantages": ["marginally more careful"], "disadvantages": ["~6.9s measured — too slow for an instant lookup"], "eliminatedBy": ["instant (well under a second)"] }
+      ],
+      "selectionCriteria": [ { "criterion": "latency", "priority": "must" }, { "criterion": "cost", "priority": "high" }, { "criterion": "quality on words/phrases", "priority": "high" } ],
+      "chosenOptionId": "OPT-GLM-CEREBRAS", "recommendedOptionId": "OPT-GLM-CEREBRAS",
+      "rationale": "Translating single words/phrases is not a reasoning task. Measured warm: reasoning-on ~6.9s vs reasoning-off ~0.4s (~7x), and ~25x cheaper than a premium model, with clean output on real words. Cerebras supplies the ultra-fast inference; disabling reasoning is the latency lever. The quality-first realtime engine stays on the subtitle path; the lookup optimizes for instant + cheap.",
+      "rejectedOptions": [ { "optionId": "OPT-PREMIUM-LLM", "reason": "~3s and far pricier — overkill for a word lookup" }, { "optionId": "OPT-REASONING-ON", "reason": "~6.9s measured, too slow for an instant lookup" } ],
+      "tracesTo": ["REQ-011", "JRN-003", "AT-007"], "evidenceRefs": ["EV-8"], "confidence": "high",
+      "consequences": ["a separate text-translation path distinct from the realtime subtitle engine"], "fallback": "any OpenRouter-hosted fast model behind the same call", "verificationPlan": "live use: Option-Q translates typed words/phrases sub-second in both directions"
+    },
+    {
+      "id": "DEC-LOGINITEM", "phase": "buildRelease", "question": "How should the app relaunch after a reboot?", "status": "decided", "authority": "inherited", "engineeringRisk": "low", "reversibility": "easy",
+      "hardConstraints": ["survives reboot", "user can turn it off", "no separate helper bundle"],
+      "options": [
+        { "id": "OPT-SMAPPSERVICE", "description": "SMAppService.mainApp register/unregister (macOS 13+)", "advantages": ["native", "no helper bundle", "simple status + user toggle"], "disadvantages": ["macOS 13+ only (already the floor)"], "eliminatedBy": [] },
+        { "id": "OPT-LEGACY-HELPER", "description": "Legacy SMLoginItemSetEnabled with a bundled helper app", "advantages": ["works pre-13"], "disadvantages": ["extra helper bundle to build/sign/maintain", "deprecated"], "eliminatedBy": ["no separate helper bundle"] }
+      ],
+      "selectionCriteria": [ { "criterion": "survives reboot", "priority": "must" }, { "criterion": "no helper bundle", "priority": "high" }, { "criterion": "user toggle", "priority": "medium" } ],
+      "chosenOptionId": "OPT-SMAPPSERVICE", "recommendedOptionId": "OPT-SMAPPSERVICE",
+      "rationale": "The deployment floor is already macOS 13, so SMAppService is available; it registers the main app directly as a login item with a clean enabled/disabled status for a Settings toggle and needs no separate helper bundle.",
+      "rejectedOptions": [ { "optionId": "OPT-LEGACY-HELPER", "reason": "needs a bundled helper and is the deprecated path" } ],
+      "tracesTo": ["REQ-012", "AT-008"], "evidenceRefs": ["EV-9"], "confidence": "high",
+      "consequences": ["a login-item registration on first launch + a Settings toggle"], "fallback": null, "verificationPlan": "query SMAppService status (enabled) and confirm relaunch after a restart"
     }
   ],
   "coverageMatrix": [
@@ -263,7 +300,9 @@
     { "requirementId": "REQ-007", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-KEYS"], "componentIds": ["CMP-KEYS", "CMP-SETTINGS"], "capabilityIds": ["CAPB-003"], "verificationIds": ["VER-006"], "coverage": "complete" },
     { "requirementId": "REQ-008", "journeyIds": ["JRN-001"], "decisionIds": ["DEC-KEYS"], "componentIds": ["CMP-SETTINGS"], "capabilityIds": ["CAPB-003"], "verificationIds": ["VER-006"], "coverage": "complete" },
     { "requirementId": "REQ-009", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-OVERLAY"], "componentIds": ["CMP-OVERLAY"], "capabilityIds": [], "verificationIds": ["VER-002"], "coverage": "complete" },
-    { "requirementId": "REQ-010", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-ENGINE"], "componentIds": ["CMP-ENGINE", "CMP-SESSION"], "capabilityIds": ["CAPB-002"], "verificationIds": ["VER-002"], "coverage": "complete" }
+    { "requirementId": "REQ-010", "journeyIds": ["JRN-001", "JRN-002"], "decisionIds": ["DEC-ENGINE"], "componentIds": ["CMP-ENGINE", "CMP-SESSION"], "capabilityIds": ["CAPB-002"], "verificationIds": ["VER-002"], "coverage": "complete" },
+    { "requirementId": "REQ-011", "journeyIds": ["JRN-003"], "decisionIds": ["DEC-QUICKTRANSLATE"], "componentIds": ["CMP-QUICKTRANSLATE"], "capabilityIds": ["CAPB-002"], "verificationIds": ["VER-007"], "coverage": "complete" },
+    { "requirementId": "REQ-012", "journeyIds": [], "decisionIds": ["DEC-LOGINITEM"], "componentIds": ["CMP-APP"], "capabilityIds": [], "verificationIds": ["VER-008"], "coverage": "complete" }
   ],
   "assumptions": ["the owner has at least one provider API key for the live smoke", "the user's Mac is macOS 13+", "in a video call the remote participant's audio plays through the system output (so it is captured as system audio)"],
   "risks": ["provider API/pricing changes (mitigated by the protocol seam)", "ScreenCaptureKit under App Sandbox is constrained — direct distribution with hardened runtime; full sandbox deferred", "live-smoke quality depends on the chosen provider"],
@@ -274,7 +313,7 @@
     { "id": "EP-3", "prerequisite": "Screen Recording permission granted", "affects": "test", "detectionMethod": "ScreenCaptureKit permission check", "fallback": "skip the capture integration smoke; unit tests still run", "blocking": false }
   ],
   "handoff": {
-    "buildMustImplement": ["TranslationEngine protocol + a deterministic FakeTranslationEngine + at least one real provider impl behind it", "system audio capture (ScreenCaptureKit)", "session state machine (idle/connecting/listening/reconnecting/stopped) with reconnect/backoff", "floating non-activating subtitle NSPanel", "BYOK Settings + KeyStore (Keychain + dev file fallback) + no-key guidance state", "os_log observability for session/connection/errors"],
+    "buildMustImplement": ["TranslationEngine protocol + a deterministic FakeTranslationEngine + at least one real provider impl behind it", "system audio capture (ScreenCaptureKit)", "session state machine (idle/connecting/listening/reconnecting/stopped) with reconnect/backoff", "floating non-activating subtitle NSPanel", "BYOK Settings + KeyStore (Keychain + dev file fallback) + no-key guidance state", "os_log observability for session/connection/errors", "quick-translate: a global hotkey (Option-Q) panel that translates typed text via a fast model (GLM-4.7 on Cerebras) with auto-detected direction", "login-item registration via SMAppService with a Settings toggle"],
     "buildMustPreserve": ["high-quality EN->RU is the point", "the engine sits behind a swappable protocol", "capture system audio only — never the microphone", "near-real-time", "never crash on a stream/network drop — reconnect", "bring-your-own-key with Keychain storage and NO embedded keys", "providers configured for zero retention"],
     "buildMustNotDo": ["never embed API keys", "never capture the microphone", "never log keys/audio/transcripts", "never persist audio/transcripts", "no Russian->English", "no telemetry"],
     "buildMayDecide": ["the concrete primary provider for the live smoke + exact WebSocket message shapes", "subtitle styling", "VAD/chunking details", "the app display name"],
@@ -282,5 +321,8 @@
     "expectedArtifacts": ["RealtimeTranslator.app (ad-hoc, local)", "kiln-dev.json (ready_for_release)", "kiln-artifact-manifest.json"],
     "requiredVerificationEvidence": ["swift test green on the fake-engine pipeline + KeyStore round-trip + session reconnect", "integration smoke: real capture -> non-zero frames", "live smoke (owner keys) for quality — user-reviewed"]
   },
-  "changeLog": ["rev1: architecture from kiln-spec rev2 — engine protocol seam (unified realtime primary), system-audio capture (ScreenCaptureKit), session state machine, floating subtitle panel, BYOK Keychain; de-risked against an internal reference app; ready_for_build"]
+  "changeLog": [
+    "rev1: architecture from kiln-spec rev2 — engine protocol seam (unified realtime primary), system-audio capture (ScreenCaptureKit), session state machine, floating subtitle panel, BYOK Keychain; de-risked against an internal reference app; ready_for_build",
+    "rev2: resynced to the shipped app on kiln-spec rev3 — added CMP-QUICKTRANSLATE (IF-7/IF-8, DEC-QUICKTRANSLATE, VER-007) and login-item (DEC-LOGINITEM, VER-008); signing is now a stable self-signed identity (was ad-hoc); re-pinned sourceSpec to rev3"
+  ]
 }

@@ -60,5 +60,23 @@ update on every transcript delta); fixed by throttling subtitle updates to ~14 f
   ASR-error-propagation failure mode; kept only as a documented alternative behind the
   swappable `TranslationEngine` protocol.
 
+## Resync to the shipped app (contracts must match the code)
+
+After publishing, the Kiln contracts had drifted from the app: `kiln-dev.json` referenced a
+`RealtimeProviderEngine.swift` that no longer existed (the real engine is
+`GPTRealtimeTranslateEngine.swift`), and two shipped features — the Option-Q quick-translate
+and launch-at-login — were absent from the contracts entirely. For a tool whose whole value is
+"the contract matches the code," that gap is the worst possible advertisement. We chose a
+**full resync** over a lighter "honest-MVP" patch: spec rev3 / arch rev2 / dev rev2 now trace
+both surfaces end to end, and `kiln check` holds the four-stage seam at `ready_for_release`.
+
+Dev moved to `ready_for_release` only because the one check it cannot automate (VER-003,
+subjective translation quality) had genuinely been run live and accepted —
+`blocked_on_environment` was the honest state when no key was in the build run;
+`ready_for_release` is the honest state once the owner ran the smoke. Signing is now recorded
+as `self_signed` (a value added to the manifest `signingStatus` enum), matching the stable
+"Sidekey Dev" identity rather than the throwaway `adhoc` it had claimed. An independent Codex
+pass confirmed no remaining drift (14/14 Swift files traced, all symbols present).
+
 ---
-Captured before publishing the repo (AbsoluteMode/kiln) public.
+Captured before publishing the repo (AbsoluteMode/kiln) public; resync section added 2026-06-25.

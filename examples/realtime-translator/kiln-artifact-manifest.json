@@ -1,25 +1,44 @@
 {
   "schemaVersion": "1.0",
-  "manifestRevision": 1,
-  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 2, "contentDigest": "sha256:48a9185b6f4476808e4776f135b7d2e1b28b82de1fb0d8e3b4ea7224b5a1bffb" },
-  "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:2438cb4a435c832488c6326cec7efdaab86bc058dd65c39e4d8bb9972b309ee9" },
-  "sourceDev": { "schemaVersion": "1.0", "devRevision": 1, "contentDigest": "sha256:5eb06a6d8d0cb29e8b5eb97b3083351d7c14bb998d217f0b4e6f9929d8fb7d14" },
+  "manifestRevision": 2,
+  "sourceSpec": {
+    "schemaVersion": "1.0",
+    "specRevision": 3,
+    "contentDigest": "sha256:1e89093ad66a60ed85d647a1e015efd37b18409fd656c5c36e591382f278807d"
+  },
+  "sourceArch": {
+    "schemaVersion": "1.0",
+    "archRevision": 2,
+    "contentDigest": "sha256:1f6daba929bcfa5651a78f9c3eaf4c636f0581a85260ba1cf4206166af35307c"
+  },
+  "sourceDev": {
+    "schemaVersion": "1.0",
+    "devRevision": 2,
+    "contentDigest": "sha256:fea19ae2119501569d3503b731357cbe4431526c28c7b4c354142b4565066fed"
+  },
   "artifacts": [
     {
       "id": "ART-1",
       "type": "app",
       "path": "build/RealtimeTranslator.app",
-      "sha256": "sha256:58610b89f8196d52e1efa34edd9cd5c58d7cbd23a3dd831de0622d7edbd073cd",
-      "size": 347504,
+      "sha256": "sha256:e935efc5ce620fda19152dcabe12d06cc4f716da1faeed337c1abf9d5c246565",
+      "size": 528448,
       "bundleIdentifier": "com.kiln.realtimetranslator",
       "applicationVersion": "0.1.0",
       "buildNumber": "1",
-      "binaryUUIDs": [],
+      "binaryUUIDs": [
+        "44C80DED-753D-3921-95C0-D3AF8FF14AF2"
+      ],
       "dSYMRefs": [],
-      "signingStatus": "adhoc",
+      "signingStatus": "self_signed",
       "notarizationStatus": "none"
     }
   ],
-  "evidenceIndex": ["sha256/size are the real built RealtimeTranslator.app Mach-O (ad-hoc, local); Developer ID + notarization land in release Slice 2. The candidate is built but dev is blocked_on_environment until the VER-003 quality live smoke runs with the owner's key."],
-  "changeLog": ["rev1: candidate manifest for the real RealtimeTranslator build"]
+  "evidenceIndex": [
+    "sha256/size are the real built RealtimeTranslator.app Mach-O (Contents/MacOS/RealtimeTranslator), signed with the stable self-signed identity 'Sidekey Dev'; Developer ID + notarization land in release Slice 2. This is the resynced ready_for_release build: the subtitle pipeline + quick-translate (Option-Q) + login-item (SMAppService). The VER-003 quality live smoke was run with the owner's key and accepted over daily use."
+  ],
+  "changeLog": [
+    "rev1: candidate manifest for the real RealtimeTranslator build",
+    "rev2: re-measured the shipped binary (sha256 e935efc5, size 528448, UUID 44C80DED..., self-signed) and re-pinned spec rev3 / arch rev2 / dev rev2 (ready_for_release)"
+  ]
 }

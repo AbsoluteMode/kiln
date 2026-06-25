@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const artifactType = z.enum(['app', 'dmg', 'pkg', 'zip', 'binary']);
-export const signingStatus = z.enum(['unsigned', 'adhoc', 'developer_id', 'app_store']);
+export const signingStatus = z.enum(['unsigned', 'adhoc', 'self_signed', 'developer_id', 'app_store']);
 export const notarizationStatus = z.enum(['none', 'submitted', 'accepted', 'stapled']);
 
 export const candidateArtifact = z

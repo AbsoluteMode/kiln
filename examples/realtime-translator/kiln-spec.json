@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "specRevision": 2,
+  "specRevision": 3,
   "status": "ready",
   "intent": {
     "oneSentenceIntent": "A macOS app that shows near-real-time Russian subtitles for the English you hear — on YouTube and in video calls — by translating your Mac's system audio with a high-quality realtime speech-translation engine.",
@@ -11,12 +11,12 @@
     "explicitConstraints": [
       "translation QUALITY is the top priority",
       "near-real-time: subtitles with about 1-3 seconds of lag are acceptable; this is not zero-latency simultaneous interpretation",
-      "English to Russian, one direction only",
+      "the live subtitle path is English to Russian, one direction only; the separate quick-translate text lookup auto-detects RU/EN for typed words and phrases",
       "uses cloud providers because quality is the priority",
       "bring-your-own-key: the user can enter their own provider key in the app"
     ],
     "nonGoals": [
-      "Russian to English (translating the user's own speech)",
+      "Russian to English translation of the user's own speech/audio (the typed quick-translate lookup is a separate, in-scope, bidirectional convenience)",
       "fully offline operation (a private on-device mode is a possible future path, not this build)",
       "saving or exporting transcripts (may be added later)",
       "translating language pairs other than English to Russian",
@@ -59,11 +59,25 @@
       ],
       "expectedOutcome": "the user follows what the English speakers are saying in Russian, near-real-time; the user's own microphone and voice are never captured",
       "failureRecovery": "the same reconnecting and idle handling as JRN-001; the user can stop the session at any time and the subtitles clear"
+    },
+    {
+      "id": "JRN-003",
+      "actor": "a Russian-speaking user who hits an English word they want to check (or needs the English for a Russian one) mid-task",
+      "trigger": "the user presses the global quick-translate hotkey (Option-Q) from any app",
+      "preconditions": ["an OpenRouter API key has been entered in Settings"],
+      "steps": [
+        "press Option-Q anywhere (even over a fullscreen call)",
+        "type a word or phrase",
+        "read the instant translation; the direction is auto-detected (Cyrillic in -> English, otherwise -> Russian)",
+        "press Escape to dismiss"
+      ],
+      "expectedOutcome": "a faithful translation of the typed word or phrase appears in well under a second, without leaving the current app",
+      "failureRecovery": "if no OpenRouter key is set, the panel says so and points to Settings; a network error shows a clear error string, never a crash"
     }
   ],
   "scope": {
     "must": ["REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005", "REQ-006", "REQ-007"],
-    "should": ["REQ-008", "REQ-009", "REQ-010"],
+    "should": ["REQ-008", "REQ-009", "REQ-010", "REQ-011", "REQ-012"],
     "wont": ["Russian to English", "offline operation", "saving/exporting transcripts", "language pairs other than EN to RU", "speaker diarization", "microphone capture", "embedded/bundled API keys"]
   },
   "sources": [
@@ -74,7 +88,9 @@
     { "id": "S5", "type": "analog_product_doc", "title": "2026 streaming speech-to-text comparison: Deepgram Nova-3 leads streaming latency (sub-300ms, ~6.84% median streaming WER); AssemblyAI Universal-3 Pro and ElevenLabs Scribe v2 are close competitors", "url": "https://deepgram.com/learn/best-speech-to-text-apis-2026", "supports": ["REQ-002", "REQ-010"] },
     { "id": "S6", "type": "analog_product_doc", "title": "2026 LLM-vs-MT translation benchmark: frontier LLMs (GPT-4/GPT-4o, Claude) lead COMET and human evaluation for nuanced, idiomatic translation; DeepL's edge is European pairs", "url": "https://intlpull.com/blog/llm-translation-quality-benchmark-2026", "supports": ["REQ-003"] },
     { "id": "S7", "type": "analog_product_doc", "title": "2026 unified realtime speech-translation: OpenAI GPT-Realtime-Translate and Google Gemini 3.5 Live Translate stream audio in and translated transcript+audio out in a single model over WebSockets, sub-second to a few seconds latency, positioned as interpreters", "url": "https://developers.openai.com/api/docs/guides/realtime-translation", "supports": ["REQ-002", "REQ-003", "REQ-004", "REQ-010"] },
-    { "id": "S8", "type": "apple_primary_doc", "title": "Apple SpeechAnalyzer / SpeechTranscriber (WWDC25, macOS 26): on-device speech-to-text built for live transcription, ~55% faster than Whisper Large V3 Turbo at matching accuracy — the strongest on-device ASR for a future private path", "url": "https://developer.apple.com/videos/play/wwdc2025/277/", "supports": ["REQ-002"] }
+    { "id": "S8", "type": "apple_primary_doc", "title": "Apple SpeechAnalyzer / SpeechTranscriber (WWDC25, macOS 26): on-device speech-to-text built for live transcription, ~55% faster than Whisper Large V3 Turbo at matching accuracy — the strongest on-device ASR for a future private path", "url": "https://developer.apple.com/videos/play/wwdc2025/277/", "supports": ["REQ-002"] },
+    { "id": "S9", "type": "user_statement", "title": "Maxim's request: a quick-translate global hotkey (Option-Q) for instant single word/phrase lookups using a fast, cheap model — GLM-4.7 on Cerebras via OpenRouter with reasoning disabled (measured ~0.4s, ~25x cheaper than a premium model)", "supports": ["REQ-011"] },
+    { "id": "S10", "type": "apple_primary_doc", "title": "SMAppService (macOS 13+) registers an app as a login item so it relaunches automatically at login / after a reboot", "url": "https://developer.apple.com/documentation/servicemanagement/smappservice", "supports": ["REQ-012"] }
   ],
   "analogClaims": [
     {
@@ -151,7 +167,9 @@
       { "id": "REQ-005", "statement": "start and stop a translation session; stopping clears the subtitles", "priority": "must", "evidenceRefs": ["S1"] },
       { "id": "REQ-008", "statement": "a clear first-run / no-key state that guides the user to add a key before a session can run", "priority": "should", "evidenceRefs": ["S1"] },
       { "id": "REQ-009", "statement": "readable subtitle presentation (size, position, opacity) that stays legible over varied backgrounds and in light/dark", "priority": "should", "evidenceRefs": ["S1", "S3"] },
-      { "id": "REQ-010", "statement": "bound latency to a near-real-time target (about 3 seconds) by translating on sentence boundaries (pipeline) or using a streaming realtime model (unified)", "priority": "should", "evidenceRefs": ["S1", "S3", "S5", "S7"] }
+      { "id": "REQ-010", "statement": "bound latency to a near-real-time target (about 3 seconds) by translating on sentence boundaries (pipeline) or using a streaming realtime model (unified)", "priority": "should", "evidenceRefs": ["S1", "S3", "S5", "S7"] },
+      { "id": "REQ-011", "statement": "a global-hotkey quick-translate: press Option-Q from any app, type a word or phrase, and get an instant translation with auto-detected direction (RU/EN), powered by a fast, cheap text model", "priority": "should", "evidenceRefs": ["S1", "S9"] },
+      { "id": "REQ-012", "statement": "the app registers as a login item so it relaunches automatically after a restart (survives reboot), with a user toggle in Settings", "priority": "should", "evidenceRefs": ["S1", "S10"] }
     ]
   },
   "qualityAttributes": [
@@ -161,13 +179,16 @@
     "resilient to network drops — never crashes",
     "private by configuration — zero-retention providers, keys in the Keychain, no embedded secrets",
     "captures only system audio, never the microphone",
-    "provider-agnostic — the engine sits behind a protocol so it can track the fast-moving 2026 market"
+    "provider-agnostic — the engine sits behind a protocol so it can track the fast-moving 2026 market",
+    "quick word/phrase lookups are instant (sub-second) via a fast, cheap text model",
+    "relaunches automatically at login so it survives a reboot"
   ],
   "dataHandlingIntent": {
     "dataFlows": [
       { "dataCategory": "system audio (English speech from YouTube or call participants)", "source": "macOS system audio output (ScreenCaptureKit)", "purpose": "stream to a cloud realtime speech-translation provider (unified model), or to a streaming speech-to-text provider in the alternative pipeline, to obtain Russian text", "sensitivity": "high", "destination": "the configured cloud provider", "locality": "cloud", "retention": "none — configure the provider for zero retention; the app does not store it", "deletion": "not persisted; exists only for the live session", "thirdParties": ["OpenAI (GPT-Realtime-Translate)", "Google (Gemini Live Translate)", "Deepgram"] },
       { "dataCategory": "English transcript text (alternative pipeline only)", "source": "speech-to-text output", "purpose": "translate to Russian when using the ASR+MT pipeline rather than a unified model", "sensitivity": "high", "destination": "the configured translation provider", "locality": "cloud", "retention": "none — configure the provider to not retain / opt out of training; the app does not store it", "deletion": "not persisted; exists only for the live session", "thirdParties": ["DeepL", "OpenAI", "Anthropic"] },
-      { "dataCategory": "provider API keys (the user's own; or owner/system trial keys for experiments later)", "source": "user input in Settings (or Doppler for the owner's local development)", "purpose": "authenticate to the chosen cloud providers", "sensitivity": "high", "destination": "macOS Keychain (local)", "locality": "local", "retention": "stored until the user removes it", "deletion": "the user can clear it in Settings", "thirdParties": ["none"] }
+      { "dataCategory": "provider API keys (the user's own; or owner/system trial keys for experiments later)", "source": "user input in Settings (or Doppler for the owner's local development)", "purpose": "authenticate to the chosen cloud providers", "sensitivity": "high", "destination": "macOS Keychain (local)", "locality": "local", "retention": "stored until the user removes it", "deletion": "the user can clear it in Settings", "thirdParties": ["none"] },
+      { "dataCategory": "quick-translate typed text (a word or short phrase the user types into the Option-Q panel)", "source": "user keyboard input in the quick-translate panel", "purpose": "translate the typed word/phrase via a fast text model for an instant lookup", "sensitivity": "low", "destination": "OpenRouter (routed to Cerebras for GLM-4.7)", "locality": "cloud", "retention": "none — not stored by the app; configure the provider for no retention", "deletion": "not persisted; exists only for the single request", "thirdParties": ["OpenRouter", "Cerebras"] }
     ],
     "forbiddenPractices": [
       "never embed or hardcode API keys in the app bundle or source code",
@@ -205,7 +226,9 @@
     "in a video call, the remote speakers' English appears as Russian subtitles; the user's own voice is never captured",
     "the translation is faithful enough to follow the meaning (verified on a real sample clip)",
     "a dropped network or audio stream shows a clear reconnecting state and recovers without crashing",
-    "the app runs on a provider key the user entered in Settings, and ships with no embedded keys"
+    "the app runs on a provider key the user entered in Settings, and ships with no embedded keys",
+    "pressing the quick-translate hotkey (Option-Q) translates a typed word or phrase in either direction in well under a second",
+    "the app relaunches automatically after a restart (registered as a login item)"
   ],
   "acceptanceTests": [
     {
@@ -255,6 +278,22 @@
       "when": "the key is saved and later read back",
       "then": ["it is persisted in the Keychain and used for requests", "when no key is present the app shows the add-key guidance and makes no cloud call"],
       "requiredEvidence": ["automated_assertion", "ui_smoke"]
+    },
+    {
+      "id": "AT-007",
+      "covers": ["REQ-011"],
+      "given": "an OpenRouter key is set and the app is running",
+      "when": "the user presses Option-Q, types a word, and submits",
+      "then": ["the quick-translate panel appears over the current app", "the typed text is translated in the auto-detected direction and shown in well under a second"],
+      "requiredEvidence": ["live_smoke", "ui_smoke"]
+    },
+    {
+      "id": "AT-008",
+      "covers": ["REQ-012"],
+      "given": "the app has launched at least once",
+      "when": "the login-item registration is queried (and the Mac restarts)",
+      "then": ["the app is registered as an enabled login item (SMAppService status enabled)", "it relaunches automatically after a restart"],
+      "requiredEvidence": ["manual_audit"]
     }
   ],
   "unknowns": [
@@ -283,7 +322,9 @@
     { "decision": "bring-your-own-key — keys entered in Settings, stored in the Keychain; no embedded keys", "rationale": "the user asked for in-app key entry; embedding keys in a client app would expose them to extraction and account drain", "tier": "confirmed" },
     { "decision": "the owner's keys are used only for local development and the live smoke via Doppler — never committed or bundled", "rationale": "safe testing at real quality without exposing the keys", "tier": "confirmed" },
     { "decision": "system trial keys for other users deferred to a proxy-backed later slice", "rationale": "the only safe way to share keys is server-side behind a quota-limited proxy", "tier": "auto" },
-    { "decision": "quality verified by a live smoke; pipeline correctness verified by automated tests on fakes", "rationale": "subjective quality cannot be unit-asserted; the pipeline can", "tier": "auto" }
+    { "decision": "quality verified by a live smoke; pipeline correctness verified by automated tests on fakes", "rationale": "subjective quality cannot be unit-asserted; the pipeline can", "tier": "auto" },
+    { "decision": "quick-translate uses GLM-4.7 on Cerebras (via OpenRouter) with reasoning disabled", "rationale": "translating single words/phrases is not a reasoning task; measured warm latency was ~6.9s with reasoning on vs ~0.4s off (~7x faster) and ~25x cheaper than a premium model — instant and cheap is the right trade for a lookup, while the subtitle path keeps the quality-first realtime engine", "tier": "confirmed" },
+    { "decision": "register the app as a login item via SMAppService so it survives reboot", "rationale": "the user asked for the app to relaunch after a restart; SMAppService is the native macOS 13+ mechanism with a user-facing toggle, no helper bundle required", "tier": "confirmed" }
   ],
   "handoff": {
     "buildMayDecide": ["UI framework (SwiftUI) and subtitle-window styling", "the concrete primary provider among the researched options and its SDK/transport (WebSocket)", "audio chunking / voice-activity-detection details", "the reconnect/backoff strategy", "the app's display name", "packaging and signing"],
@@ -293,6 +334,7 @@
   },
   "changeLog": [
     "rev1: initial intent contract — awaiting human confirmation of the recap",
-    "rev2: baked in 2026 stack research (S5-S8, C4-C6); engine decision = provider protocol with a unified realtime model primary (OpenAI/Gemini), Deepgram+LLM/DeepL alternative, Apple on-device future path; corrected the DeepL-is-RU-king assumption; status -> ready"
+    "rev2: baked in 2026 stack research (S5-S8, C4-C6); engine decision = provider protocol with a unified realtime model primary (OpenAI/Gemini), Deepgram+LLM/DeepL alternative, Apple on-device future path; corrected the DeepL-is-RU-king assumption; status -> ready",
+    "rev3: resynced to the shipped app — added the quick-translate global-hotkey surface (REQ-011, JRN-003, AT-007; GLM-4.7 on Cerebras, reasoning off) and launch-at-login (REQ-012, AT-008; SMAppService); scoped the one-direction constraint to the subtitle path"
   ]
 }

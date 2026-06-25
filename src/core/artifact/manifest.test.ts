@@ -36,6 +36,19 @@ describe('kiln-artifact-manifest v1', () => {
     expect(m.artifacts[0].signingStatus).toBe('adhoc');
   });
 
+  it('accepts a stable self-signed identity', () => {
+    const raw = validManifest();
+    raw.artifacts[0].signingStatus = 'self_signed';
+    const m = parseArtifactManifest(raw);
+    expect(m.artifacts[0].signingStatus).toBe('self_signed');
+  });
+
+  it('rejects an unknown signing status', () => {
+    const raw = validManifest();
+    raw.artifacts[0].signingStatus = 'notarized_maybe';
+    expect(() => parseArtifactManifest(raw)).toThrow();
+  });
+
   it('rejects duplicate artifact ids', () => {
     const raw = validManifest();
     raw.artifacts.push({ ...raw.artifacts[0] });

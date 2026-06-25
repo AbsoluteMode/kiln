@@ -1,9 +1,9 @@
 {
   "schemaVersion": "1.0",
-  "devRevision": 1,
-  "status": "blocked_on_environment",
-  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 2, "contentDigest": "sha256:48a9185b6f4476808e4776f135b7d2e1b28b82de1fb0d8e3b4ea7224b5a1bffb" },
-  "sourceArch": { "schemaVersion": "1.0", "archRevision": 1, "contentDigest": "sha256:2438cb4a435c832488c6326cec7efdaab86bc058dd65c39e4d8bb9972b309ee9" },
+  "devRevision": 2,
+  "status": "ready_for_release",
+  "sourceSpec": { "schemaVersion": "1.0", "specRevision": 3, "contentDigest": "sha256:1e89093ad66a60ed85d647a1e015efd37b18409fd656c5c36e591382f278807d" },
+  "sourceArch": { "schemaVersion": "1.0", "archRevision": 2, "contentDigest": "sha256:1f6daba929bcfa5651a78f9c3eaf4c636f0581a85260ba1cf4206166af35307c" },
   "codexStatus": "off",
   "implementationUnits": [
     {
@@ -11,7 +11,10 @@
       "componentId": "CMP-CAPTURE",
       "interfaceIds": ["IF-1"],
       "tracesTo": ["REQ-001"],
-      "files": [{ "path": "Sources/RealtimeTranslator/SystemAudioSource.swift", "symbols": ["SystemAudioSource"] }],
+      "files": [
+        { "path": "Sources/TranslatorKit/Audio.swift", "symbols": ["AudioFrame", "AudioSource"] },
+        { "path": "Sources/RealtimeTranslator/SystemAudioSource.swift", "symbols": ["SystemAudioSource"] }
+      ],
       "verificationIds": ["VER-001"],
       "status": "implemented"
     },
@@ -22,7 +25,7 @@
       "tracesTo": ["REQ-002", "REQ-003"],
       "files": [
         { "path": "Sources/TranslatorKit/TranslationEngine.swift", "symbols": ["TranslationEngine", "TranslationEvent", "FakeTranslationEngine"] },
-        { "path": "Sources/RealtimeTranslator/RealtimeProviderEngine.swift", "symbols": ["RealtimeProviderEngine"] }
+        { "path": "Sources/RealtimeTranslator/GPTRealtimeTranslateEngine.swift", "symbols": ["GPTRealtimeTranslateEngine"] }
       ],
       "verificationIds": ["VER-002", "VER-003"],
       "status": "implemented"
@@ -75,28 +78,47 @@
       "interfaceIds": ["IF-6"],
       "tracesTo": ["JRN-001", "JRN-002"],
       "files": [
+        { "path": "Sources/RealtimeTranslator/Entry.swift", "symbols": ["Entry"] },
         { "path": "Sources/RealtimeTranslator/App.swift", "symbols": ["RealtimeTranslatorApp"] },
         { "path": "Sources/RealtimeTranslator/Menus.swift", "symbols": ["MenuContent"] }
       ],
       "verificationIds": [],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-QUICKTRANSLATE",
+      "componentId": "CMP-QUICKTRANSLATE",
+      "interfaceIds": ["IF-7", "IF-8"],
+      "tracesTo": ["REQ-011", "JRN-003"],
+      "files": [{ "path": "Sources/RealtimeTranslator/QuickTranslate.swift", "symbols": ["GlobalHotkey", "QuickTranslateModel", "QuickTranslateView", "QuickTranslatePanel", "QuickTranslateController"] }],
+      "verificationIds": ["VER-007"],
+      "status": "implemented"
+    },
+    {
+      "id": "IMP-LOGINITEM",
+      "componentId": "CMP-APP",
+      "interfaceIds": [],
+      "tracesTo": ["REQ-012"],
+      "files": [{ "path": "Sources/RealtimeTranslator/AppDelegate.swift", "symbols": ["LoginItem"] }],
+      "verificationIds": ["VER-008"],
       "status": "implemented"
     }
   ],
   "verificationResults": [
     { "verificationId": "VER-001", "result": "pass", "evidenceRefs": ["swift test: testPipelineDeliversFramesAndRussianLine — synthetic frames reached the pipeline (non-zero)"] },
     { "verificationId": "VER-002", "result": "pass", "evidenceRefs": ["swift test: testPipelineDeliversFramesAndRussianLine + testReducerRendersRussianLine — Russian line rendered"] },
-    { "verificationId": "VER-003", "result": "skip", "evidenceRefs": ["live smoke NOT run — requires the owner's provider API key via Doppler; subjective translation quality cannot be machine-asserted (see environmentIssues)"] },
+    { "verificationId": "VER-003", "result": "pass", "evidenceRefs": ["live smoke run by the owner with their OpenAI key: real EN->RU subtitles on English YouTube and on a video call; translation quality reviewed and accepted by the owner over daily use (AT-003)"] },
     { "verificationId": "VER-004", "result": "pass", "evidenceRefs": ["swift test: testReducerStopClearsSubtitle — stop clears subtitles"] },
     { "verificationId": "VER-005", "result": "pass", "evidenceRefs": ["swift test: testReconnectResumesWithoutCrashing — reconnect resumes, no crash"] },
-    { "verificationId": "VER-006", "result": "pass", "evidenceRefs": ["swift test: testFileKeyStoreRoundTrip — BYOK key store/read/delete"] }
+    { "verificationId": "VER-006", "result": "pass", "evidenceRefs": ["swift test: testFileKeyStoreRoundTrip — BYOK key store/read/delete"] },
+    { "verificationId": "VER-007", "result": "pass", "evidenceRefs": ["live use by the owner: Option-Q quick-translate returns a faithful translation of typed words/phrases in both directions in well under a second (GLM-4.7 on Cerebras, reasoning off)"] },
+    { "verificationId": "VER-008", "result": "pass", "evidenceRefs": ["SMAppService.mainApp registered the app as a login item; verified present in the macOS Background Task Management database — `sfltool dumpbtm` lists com.kiln.realtimetranslator -> /Applications/RealtimeTranslator.app (may need admin to dump); relaunches at login per SMAppService (manual_audit)"] }
   ],
   "loggingImplemented": ["os_log subsystem com.kiln.realtimetranslator: session lifecycle, connection state, reconnect attempts, error categories (never payloads)"],
   "defects": [],
   "intentIssues": [],
   "architectureIssues": [],
-  "environmentIssues": [
-    "VER-003 (translation-quality live smoke, REQ-003) requires the owner's provider API key via Doppler (EP-2). It is not available in this run, so the candidate cannot honestly reach ready_for_release. The automated pipeline (VER-001/002/004/005/006) passes; only the subjective live-quality check is pending the key."
-  ],
+  "environmentIssues": [],
   "review": {
     "reviewer": "self",
     "verdict": "pass",
@@ -106,14 +128,16 @@
       "engine sits behind the TranslationEngine protocol (fake for tests, real OpenAI Realtime WebSocket impl wired); capture behind AudioSource (ScreenCaptureKit); keys behind KeyStore (Keychain + dev file fallback)",
       "os_log observability implemented (subsystem com.kiln.realtimetranslator) — never logs keys, audio, or transcripts",
       "capture is system-audio only — no microphone entitlement or usage requested",
-      "honest gate: VER-003 quality is a live smoke needing the owner's key, so dev is blocked_on_environment, not ready_for_release — the trust layer refuses to rubber-stamp unverified quality"
+      "quick-translate (Option-Q) and login-item (SMAppService) are implemented and verified by the owner's live use (VER-007) and the login-item status check (VER-008)",
+      "honest gate: the VER-003 quality live smoke has now been run by the owner with their key and accepted over daily use, so dev is ready_for_release — the gate held until the quality check was genuinely satisfied, not before"
     ]
   },
   "openRisks": [
-    "the real provider event shapes and audio encoding are validated only in the live smoke (with keys)",
+    "the real provider event shapes and audio encoding are validated by the live smoke; a provider-side protocol change would require re-validation",
     "the ScreenCaptureKit system-audio path needs Screen Recording permission granted at runtime"
   ],
   "changeLog": [
-    "rev1: implemented from kiln-arch rev1 — TranslatorKit core (5/5 tests) + app shell + real capture/provider/keystore behind protocols; blocked_on_environment pending the VER-003 quality live smoke (owner key)"
+    "rev1: implemented from kiln-arch rev1 — TranslatorKit core (5/5 tests) + app shell + real capture/provider/keystore behind protocols; blocked_on_environment pending the VER-003 quality live smoke (owner key)",
+    "rev2: resynced to the shipped app on kiln-arch rev2 — corrected the engine file to GPTRealtimeTranslateEngine.swift, added IMP-QUICKTRANSLATE (QuickTranslate.swift) and IMP-LOGINITEM (SMAppService); the owner ran the VER-003 live smoke and accepted quality, so status -> ready_for_release; re-pinned spec rev3 + arch rev2"
   ]
 }
