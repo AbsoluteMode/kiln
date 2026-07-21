@@ -60,4 +60,20 @@ final class TranslatorKitTests: XCTestCase {
         XCTAssertNil(try store.read(forProvider: "openai"))
         try? FileManager.default.removeItem(atPath: dir)
     }
+
+    func testQuickTranslatePayloadUsesGemini35FlashLiteWithMinimalReasoning() throws {
+        let body = QuickTranslateRequest.body(text: "привет", target: "English")
+
+        XCTAssertEqual(body["model"] as? String, "google/gemini-3.5-flash-lite")
+        XCTAssertNil(body["provider"])
+
+        let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+        XCTAssertEqual(reasoning["effort"] as? String, "minimal")
+        XCTAssertEqual(reasoning["exclude"] as? Bool, true)
+
+        let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+        XCTAssertEqual(messages.last?["content"], "привет")
+        XCTAssertTrue(messages.first?["content"]?.contains("English") == true)
+        XCTAssertTrue(messages.first?["content"]?.contains("Output ONLY the translation") == true)
+    }
 }

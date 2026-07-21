@@ -76,15 +76,7 @@ final class QuickTranslateModel: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: Any] = [
-            "model": "z-ai/glm-4.7",
-            "provider": ["order": ["Cerebras"]],   // ultra-fast inference for instant word lookups
-            "reasoning": ["enabled": false],        // translation isn't a reasoning task -> ~7x faster
-            "messages": [
-                ["role": "system", "content": "You are a translator. Translate the user's text to \(target). Output ONLY the translation — no quotes, no notes, no alternatives."],
-                ["role": "user", "content": text],
-            ],
-        ]
+        let body = QuickTranslateRequest.body(text: text, target: target)
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
