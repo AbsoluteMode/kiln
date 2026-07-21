@@ -198,13 +198,16 @@ Expected: installation succeeds and `pgrep` returns one running app PID.
 
 - [ ] **Step 5: Smoke-test OpenRouter model availability without exposing the key**
 
-Run this only if the app's OpenRouter key exists in Keychain:
+Use the same file-backed key store as the personal app build:
 
 ```bash
-quick_translate_key="$(security find-generic-password \
-  -s com.kiln.realtimetranslator -a openrouter -w 2>/dev/null || true)"
+quick_translate_key_path="$HOME/Library/Application Support/RealtimeTranslator/openrouter.key"
+quick_translate_key=""
+if [ -f "$quick_translate_key_path" ]; then
+  quick_translate_key="$(<"$quick_translate_key_path")"
+fi
 if [ -z "$quick_translate_key" ]; then
-  echo "SKIP: no OpenRouter key in Keychain"
+  echo "SKIP: no OpenRouter key in the app's file-backed key store"
 else
   response="$(curl -fsS https://openrouter.ai/api/v1/chat/completions \
     -H "Authorization: Bearer $quick_translate_key" \
@@ -213,7 +216,7 @@ else
   jq -e '.choices[0].message.content | strings | length > 0' <<<"$response" >/dev/null
   echo "PASS: Gemini 3.5 Flash-Lite returned a translation"
 fi
-unset quick_translate_key response
+unset quick_translate_key_path quick_translate_key response
 ```
 
 Expected: `PASS` with a configured key, or an explicit `SKIP` without one; no secret is printed.

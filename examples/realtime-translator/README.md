@@ -16,7 +16,7 @@ contracts kept in sync as the app grew a quick-translate hotkey and launch-at-lo
   text out.
 - **Quick-translate** — press **⌥Q** anywhere (even over a fullscreen call), type a word or
   phrase, get an instant translation. Auto-detects direction (RU↔EN). Powered by
-  **`glm-4.7` on Cerebras** (reasoning off) — sub-second.
+  **Gemini 3.5 Flash-Lite through OpenRouter** with minimal thinking for low latency.
 - **System audio only** — captured via **ScreenCaptureKit**; the microphone is never touched.
 - **Bring-your-own-key** — keys live in a local file (`0600`) or the Keychain; **never
   embedded in the build**.
