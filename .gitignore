@@ -25,3 +25,6 @@ yarn-error.log*
 !.vscode/extensions.json
 .idea/
 *.swp
+
+# Isolated feature worktrees
+.worktrees/
